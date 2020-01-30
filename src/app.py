@@ -1,11 +1,9 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools
 import OpenGL.GL as gl
-import array
-import ctypes
-import time
-from shader_app_utils import \
-  exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
-  preprocess_include, PreprocessIncludeWatcher, parse_shader_config
+import os, array, ctypes, time
+from .utils import \
+    exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
+    preprocess_include, PreprocessIncludeWatcher, parse_shader_config
 
 
 VERTEX_SHADER_SOURCE = """
@@ -369,7 +367,7 @@ def load_ui_file(file):
 def setup_gui(fragment_shader_file, w, h, x, y):
   # TODO: Temporary inline class/instance
   self = type('MyWindow', (object,), {})()
-  self.window = load_ui_file('shader_app.ui')
+  self.window = load_ui_file(os.path.join(os.path.dirname(__file__), 'app.ui'))
   self.start_icon = QtGui.QIcon.fromTheme('media-playback-start-symbolic')
   self.pause_icon = QtGui.QIcon.fromTheme('media-playback-pause-symbolic')
 

@@ -17,8 +17,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run unittest
-        run: python -m unittest discover -t . -s test -v
+        run: python -m unittest -v src/*_test.py
 
       # TODO: setup offscreen render on server (cf. https://doc.qt.io/qt-5/qtest-overview.html)
       # - name: Run offscreen render
-      #   run: python batch.py --out-dir shaders/images --format png shaders/example*.glsl
+      #   run: python -m src.batch --out-dir shaders/images --format png shaders/ex*.glsl

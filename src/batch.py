@@ -1,8 +1,8 @@
 import argparse
 import os
 from PySide2 import QtWidgets, QtGui
-from shader_app import setup_misc, OffscreenRenderer
-from shader_app_utils import setup_interrupt_handler, setup_qt_message_handler, preprocess_include
+from .app import setup_misc, OffscreenRenderer
+from .utils import setup_interrupt_handler, setup_qt_message_handler, preprocess_include
 
 
 def process_batch(files, width, height, out_dir, format):

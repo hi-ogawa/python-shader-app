@@ -1,5 +1,5 @@
 import unittest, tempfile, shutil, contextlib, os
-from shader_app_utils import preprocess_include
+from .utils import preprocess_include
 
 @contextlib.contextmanager
 def make_tmpdir():
