@@ -356,15 +356,6 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     return sum(self.delta_times) / size if size > 0 else 0
 
 
-def setup_gl_version():
-  surface_format = QtGui.QSurfaceFormat()
-  surface_format.setMajorVersion(3)
-  surface_format.setMinorVersion(3)
-  surface_format.setProfile(QtGui.QSurfaceFormat.CoreProfile)
-  surface_format.setOption(QtGui.QSurfaceFormat.DebugContext)
-  QtGui.QSurfaceFormat.setDefaultFormat(surface_format)
-
-
 # file : str -> widget : QWidget
 def load_ui_file(file):
   loader = QtUiTools.QUiLoader()
@@ -458,35 +449,43 @@ def setup_gui(fragment_shader_file, w, h, x, y):
   return self
 
 
-def render_offscreen(fragment_shader_file, output_file, w, h):
-  # Setup GL window and context
-  surface = QtGui.QOffscreenSurface()
-  surface.create()
-  context = QtGui.QOpenGLContext()
-  context.create()
-  context.makeCurrent(surface)
+class OffscreenRenderer():
+  def __init__(self, width, height):
+    self.w, self.h = width, height
+    self.surface = QtGui.QOffscreenSurface()
+    self.surface.create()
+    self.context = QtGui.QOpenGLContext()
+    self.context.create()
+    self.context.makeCurrent(self.surface)
+    self.fbo = QtGui.QOpenGLFramebufferObject(self.w, self.h)
+    self.renderer = MultiPassRenderer()
 
-  # Setup fbo
-  fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
-  fbo_format.setAttachment(QtGui.QOpenGLFramebufferObject.CombinedDepthStencil)
-  fbo = QtGui.QOpenGLFramebufferObject(w, h, fbo_format)
-  fbo.bind()
-
-  # Run Renderer
-  renderer = MultiPassRenderer()
-  src, _ = preprocess_include(fragment_shader_file)
-  renderer.configure(src, w, h)
-
-  option = renderer.config['offscreen_option']
-  fps = option['fps']
-  num_frames = option['num_frames']
-  for frame in range(num_frames):
-    time = frame / fps
-    renderer.draw(fbo.handle(), w, h, frame, time, mouse_down=False,
+  def render(self, shader_file):
+    src, _ = preprocess_include(shader_file)
+    self.renderer.configure(src, self.w, self.h)
+    option = self.renderer.config['offscreen_option']
+    fps = option['fps']
+    num_frames = option['num_frames']
+    for frame in range(num_frames):
+      time = frame / fps
+      self.renderer.draw(
+          self.fbo.handle(), self.w, self.h, frame, time, mouse_down=False,
           mouse_press_pos=None, mouse_release_pos=None, mouse_move_pos=None)
 
-  # Save fbo as image
-  fbo.toImage().save(output_file)
+
+def render_offscreen(shader_file, output_file, w, h):
+  renderer = OffscreenRenderer(w, h)
+  renderer.render(shader_file)
+  renderer.fbo.toImage().save(output_file)
+
+
+def setup_gl_version():
+  surface_format = QtGui.QSurfaceFormat()
+  surface_format.setMajorVersion(3)
+  surface_format.setMinorVersion(3)
+  surface_format.setProfile(QtGui.QSurfaceFormat.CoreProfile)
+  surface_format.setOption(QtGui.QSurfaceFormat.DebugContext)
+  QtGui.QSurfaceFormat.setDefaultFormat(surface_format)
 
 
 def setup_misc():
