@@ -47,7 +47,8 @@ def setup_qt_message_handler(truncate_multiline=True):
 def preprocess_include(file, add_line_directive=True):
   import os, re
   file_dir = os.path.dirname(file)
-  file_content = open(file).read()
+  with open(file) as f:
+    file_content = f.read()
   include_files = [] # [str]
   result = ''
   if add_line_directive:
@@ -55,7 +56,7 @@ def preprocess_include(file, add_line_directive=True):
   for i, line in enumerate(file_content.splitlines(keepends=True)):
     m = re.match('#include "(.*)"', line)
     if m:
-      dep = f"{file_dir}/{m.group(1)}"
+      dep = os.path.join(file_dir, m.group(1))
       dep_result, dep_include_files = preprocess_include(dep)
       include_files += ([dep] + dep_include_files)
       result += dep_result
@@ -79,7 +80,9 @@ class PreprocessIncludeWatcher(QtCore.QObject):
 
   # Ignore empty file which can be sometimes produced by file writer transitionally
   def handle_changed(self, path):
-    if len(open(path).read()) == 0:
+    with open(path) as f:
+      src = f.read()
+    if len(src) == 0:
       print(f"[PreprocessIncludeWatcher] ignore empty file {path}")
     else:
       self.update(emit_signal=True)

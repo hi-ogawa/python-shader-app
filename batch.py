@@ -11,7 +11,7 @@ def process_batch(files, width, height, out_dir, format):
   renderer = OffscreenRenderer(width, height)
   for file in files:
     basename_wo_ext = os.path.splitext(os.path.basename(file))[0]
-    out_file = f"{out_dir}/{basename_wo_ext}.{format}"
+    out_file = os.path.join(out_dir, f"{basename_wo_ext}.{format}")
     print(f"[process_batch] (input) {file} (output) {out_file}")
     renderer.render(file)
     renderer.fbo.toImage().save(out_file)
