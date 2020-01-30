@@ -17,5 +17,5 @@ python shader_app.py --width 500 --height 500 shaders/example16.glsl --offscreen
 python batch.py --out-dir shaders/images --format png shaders/example*.glsl
 
 # Unit test
-python -m unittest -v test/*
+python -m unittest discover -t . -s test -v
 ```
