@@ -401,7 +401,6 @@ def setup_gui(fragment_shader_file, w, h, x, y):
     if not self.label2.hasFocus():
       self.label2.setText(f"{self.widget.app_time_maximum: >5.2f}")
     self.label3.setText(f"{self.widget.sec_per_frame() * 1000: >5.2f} (ms/f)")
-    # self.label4.setText(f"(X: {self.widget.width()}, Y: {self.widget.height()})")
     self.label4.setText(f"{self.widget.width()}x{self.widget.height()}")
 
     # QIcon doesn't have equality, so we need to do equality check by ourselves

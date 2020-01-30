@@ -10,10 +10,6 @@ void getMouseStatus(
   last_down_pos = iMouse.xy + vec2(0.5);
 }
 
-bool checker_bool(vec2 uv) {
-  return mod(floor(uv.x) + floor(uv.y), 2.0) != 0.0;
-}
-
 mat2 rotate2(float t) {
   return mat2(cos(t), sin(t), -sin(t), cos(t));
 }
@@ -56,7 +52,7 @@ vec3 sphericalCoordinate(vec3 p) {
   return vec3(r, theta, phi);
 }
 
-// TODO: Derived simpler closed formula from this or via quarternion
+// TODO: Derive simpler closed formula from this or via quarternion
 mat3 axisAngleTransform(vec3 v, float rad) {
   vec3 rtp = sphericalCoordinate(v);
   mat3 P = rotate3(vec3(0.0, rtp[1], rtp[2]));

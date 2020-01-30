@@ -143,8 +143,6 @@ def parse_shader_config(src):
         void mainImage1(out vec4, vec2, Sampler2D, Sampler2D);
 
     - Order of execution is order of "programs".
-
-    - offscreen_
   """
   import re, yaml
   start = re.search('%%config-start%%', src)
