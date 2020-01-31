@@ -18,4 +18,7 @@ python -m src.batch --out-dir shaders/images --format png shaders/ex*.glsl
 
 # Unit test
 python -m unittest -v src/*_test.py
+
+# Download shader from shadertoy
+python -m src.download --key $(cat shadertoy.key) Xds3zN > shaders/shadertoy/Xds3zN.glsl
 ```
