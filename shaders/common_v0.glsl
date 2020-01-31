@@ -1,7 +1,7 @@
 #define M_PI 3.14159
 #define FLT_MAX 1e30
 
-void getMouseStatus(
+void getMouseState(
     vec4 mouse, out bool activated, out bool down,
     out vec2 last_click_pos, out vec2 last_down_pos) {
   activated = iMouse.x > 0.5;
@@ -57,4 +57,45 @@ mat3 axisAngleTransform(vec3 v, float rad) {
   vec3 rtp = sphericalCoordinate(v);
   mat3 P = rotate3(vec3(0.0, rtp[1], rtp[2]));
   return P * rotate3(vec3(0.0, 0.0, rad)) * inverse(P);
+}
+
+// [0, W] x [0, H]  -->  [-X/2, X/2] x [-tan(yfov/2), tan(yfov/2)]
+// s.t. aspect ratio preserved
+mat3 inverseViewTransform(float yfov, vec2 Resolution) {
+  float w = Resolution.x;
+  float h = Resolution.y;
+  float half_y = tan(yfov / 2.0);
+  float half_x = (w / h) * half_y;
+  vec2 a = vec2(-half_x, -half_y);
+  float Sy = (2.0 * half_y) / h;
+  mat3 xform = mat3(
+       Sy, 0.0, 0.0,
+      0.0,  Sy, 0.0,
+      a.x, a.y, 1.0);
+  return xform;
+}
+
+mat4 lookatTransform(vec3 loc, vec3 lookat_loc, vec3 up) {
+  vec3 z = normalize(loc - lookat_loc);
+  vec3 x = - cross(z, up);
+  vec3 y = cross(z, x);
+  mat4 xform = mat4(
+      x,   0.0,
+      y,   0.0,
+      z,   0.0,
+      loc, 1.0);
+  return xform;
+}
+
+float mix2(float f00, float f10, float f01, float f11, vec2 uv) {
+  return mix(mix(f00, f10, uv.x), mix(f01, f11, uv.x), uv.y);
+}
+
+float mix3(
+    float f000, float f100, float f010, float f110,
+    float f001, float f101, float f011, float f111,
+    vec3 v) {
+  float fxy0 = mix2(f000, f100, f010, f110, v.xy);
+  float fxy1 = mix2(f001, f101, f011, f111, v.xy);
+  return mix(fxy0, fxy1, v.z);
 }

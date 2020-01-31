@@ -140,40 +140,6 @@ float rayMarch(vec3 orig, vec3 dir) {
 
 
 //
-// Misc
-//
-
-// [0, W] x [0, H]  -->  [-X/2, X/2] x [-tan(yfov/2), tan(yfov/2)]
-// s.t. aspect ratio preserved
-mat3 invViewTransform(float yfov) {
-  float W = iResolution.x;
-  float H = iResolution.y;
-  float AR = W / H;
-  float HALF_Y = tan(yfov / 2.0);
-  float HALF_X = AR * HALF_Y;
-  vec2 a = vec2(-HALF_X, -HALF_Y);
-  float Sy = (2.0 * HALF_Y) / H;
-  mat3 xform = mat3(
-       Sy, 0.0, 0.0,
-      0.0,  Sy, 0.0,
-      a.x, a.y, 1.0);
-  return xform;
-}
-
-mat4 lookatTransform(vec3 loc, vec3 lookat_loc, vec3 up) {
-  vec3 z = normalize(loc - lookat_loc);
-  vec3 x = - cross(z, up);
-  vec3 y = cross(z, x);
-  mat4 xform = mat4(
-      x,   0.0,
-      y,   0.0,
-      z,   0.0,
-      loc, 1.0);
-  return xform;
-}
-
-
-//
 // Main
 //
 
@@ -212,7 +178,7 @@ vec3 singleSample(vec2 frag_coord, mat3 inv_view_xform, mat4 camera_xform) {
 mat4 getCameraTransform(vec4 mouse, vec2 resolution) {
   bool mouse_activated, mouse_down;
   vec2 last_click_pos, last_down_pos;
-  getMouseStatus(mouse, mouse_activated, mouse_down, last_click_pos, last_down_pos);
+  getMouseState(mouse, mouse_activated, mouse_down, last_click_pos, last_down_pos);
 
   mat4 default_camera_xform = lookatTransform(CAMERA_LOC, CAMERA_LOOKAT, CAMERA_UP);
   if (!(mouse_activated && mouse_down)) {
@@ -248,7 +214,7 @@ mat4 getCameraTransform(vec4 mouse, vec2 resolution) {
 
 void mainImage(out vec4 frag_color, vec2 frag_coord) {
   // Setup coordinate system
-  mat3 inv_view_xform = invViewTransform(CAMERA_YFOV);
+  mat3 inv_view_xform = inverseViewTransform(CAMERA_YFOV, iResolution.xy);
   mat4 camera_xform = mat4(1.0);
   {
     if (CONTROL_CAMERA) {
