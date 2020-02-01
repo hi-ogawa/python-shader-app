@@ -52,6 +52,13 @@ vec3 sphericalCoordinate(vec3 p) {
   return vec3(r, theta, phi);
 }
 
+vec3 inverseSphericalCoordinate(vec3 p) {
+  return p.x * vec3(
+    sin(p.y) * cos(p.z),
+    sin(p.y) * sin(p.z),
+    cos(p.y));
+}
+
 // TODO: Derive simpler closed formula from this or via quarternion
 mat3 axisAngleTransform(vec3 v, float rad) {
   vec3 rtp = sphericalCoordinate(v);
