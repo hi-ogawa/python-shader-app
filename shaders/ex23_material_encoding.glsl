@@ -295,6 +295,13 @@ SceneInfo mainSdf(vec3 p) {
   }
   {
     // Arbitrary Triangle
+    {
+      // TODO: seems there's a bug e.g.
+      vec3 OZN = vec3(1.0, 0.0, -1.0);
+      float depth = 0.1;
+      float sd = SDF_triangle(p, OZN.yyy, OZN.xxz, OZN.zxx) - depth;
+      // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__));
+    }
     vec3 loc = 3.0 * V10.xyy;
     vec3 q = p - loc;
     float sd = SDF_triangle(q, V10.yyx, V10.xyy, V10.yxy) - 0.08;

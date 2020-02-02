@@ -4,10 +4,10 @@
 void getMouseState(
     vec4 mouse, out bool activated, out bool down,
     out vec2 last_click_pos, out vec2 last_down_pos) {
-  activated = iMouse.x > 0.5;
-  down = iMouse.z > 0.5;
-  last_click_pos = abs(iMouse.zw) + vec2(0.5);
-  last_down_pos = iMouse.xy + vec2(0.5);
+  activated = mouse.x > 0.5;
+  down = mouse.z > 0.5;
+  last_click_pos = abs(mouse.zw) + vec2(0.5);
+  last_down_pos = mouse.xy + vec2(0.5);
 }
 
 mat2 rotate2(float t) {
