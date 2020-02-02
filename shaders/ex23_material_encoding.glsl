@@ -506,7 +506,7 @@ void mainImage(out vec4 frag_color, vec2 frag_coord) {
   vec2 int_coord = floor(frag_coord);
   for (float i = 0.0; i < AA; i++) {
     for (float j = 0.0; j < AA; j++) {
-      vec2 fract_coord = (1.0 + vec2(i, j) / 2.0) / AA;
+      vec2 fract_coord = (0.5 + vec2(i, j) / 2.0) / AA;
       vec2 ms_frag_coord = int_coord + fract_coord;
       color += singleSample(ms_frag_coord, inv_view_xform, camera_xform);
     }
