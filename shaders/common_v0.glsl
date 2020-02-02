@@ -106,3 +106,13 @@ float mix3(
   float fxy1 = mix2(f001, f101, f011, f111, v.xy);
   return mix(fxy0, fxy1, v.z);
 }
+
+float Quick_hash(float t, float scale) {
+  return fract(sin(t * scale) * scale);
+}
+
+vec3 Quick_color(float t) {
+  vec3 color = 0.5 + 0.5 * cos(2.0 * M_PI * (t - vec3(0.0, 1.0, 2.0) / 3.0));
+  color = smoothstep(vec3(-0.1), vec3(0.9), color);
+  return color;
+}
