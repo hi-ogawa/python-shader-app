@@ -164,12 +164,6 @@ vec3 shadeEnvironment(vec3 ray_dir) {
   return mix(SKY_COLOR_RANGE[0], SKY_COLOR_RANGE[1], t);
 }
 
-float intersect_Line_Plane(vec3 p, vec3 v, vec3 q, vec3 n) {
-  // <p + t v - q, n> = 0
-  // assert: not v // n
-  return dot(q - p, n) / dot(v, n);
-}
-
 vec3 singleSample(vec2 frag_coord, mat3 inv_view_xform, mat4 camera_xform) {
   // Setup camera ray
   vec3 ray_orig = vec3(camera_xform[3]);

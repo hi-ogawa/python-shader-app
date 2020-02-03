@@ -109,12 +109,12 @@ vec3 SdfMod_octahedron(vec3 p, out float id) {
   const vec3 n4 = OZN.yxz;
   const vec3 n5 = OZN.xyx;
   const vec3 n6 = OZN.zyx;
-  const bool b1 = dot(p, n1) > 0.0;
-  const bool b2 = dot(p, n2) > 0.0;
-  const bool b3 = dot(p, n3) > 0.0;
-  const bool b4 = dot(p, n4) > 0.0;
-  const bool b5 = dot(p, n5) > 0.0;
-  const bool b6 = dot(p, n6) > 0.0;
+  bool b1 = dot(p, n1) > 0.0;
+  bool b2 = dot(p, n2) > 0.0;
+  bool b3 = dot(p, n3) > 0.0;
+  bool b4 = dot(p, n4) > 0.0;
+  bool b5 = dot(p, n5) > 0.0;
+  bool b6 = dot(p, n6) > 0.0;
   if ( b1 &&  b2 &&  b5 && !b6) {
     // no-op
     id = 0.0;

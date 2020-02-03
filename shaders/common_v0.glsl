@@ -10,6 +10,12 @@ void getMouseState(
   last_down_pos = mouse.xy + vec2(0.5);
 }
 
+float intersect_Line_Plane(vec3 p, vec3 v, vec3 q, vec3 n) {
+  // <p + t v - q, n> = 0
+  // assert: not v // n
+  return dot(q - p, n) / dot(v, n);
+}
+
 mat2 rotate2(float t) {
   return mat2(cos(t), sin(t), -sin(t), cos(t));
 }
