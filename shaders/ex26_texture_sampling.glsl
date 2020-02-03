@@ -1,8 +1,11 @@
 //
 // Procedual texture sampling
-// - cf. OpenGL spec 8.14.1 Scale Factor ...
-//   - definition of rho (scale factor) based on
-//     derivative of (u(x, y), v(x, y)) where (x, y) : window coord.
+// - cf.
+//   - OpenGL spec 8.14.1 Scale Factor ...
+//     - definition of rho (scale factor) based on
+//       derivative of (u(x, y), v(x, y)) where (x, y) : window coord.
+//   - http://iquilezles.org/www/articles/checkerfiltering/checkerfiltering.htm
+//   - http://www.iquilezles.org/www/articles/filtering/filtering.htm
 //
 
 #include "common_v0.glsl"
@@ -11,6 +14,10 @@
 float AA = 1.0;
 float SCALE_TIME = 1.0 / 48.0;
 float RAY_MAX_T = 1000.0;
+
+bool USE_ADAPTIVE = true;
+bool USE_CHECKER1D_INTEGRATED = true;
+bool USE_CHECKER2D_INTEGRATED = false;
 
 float BASE_ADAPTIVE_ITER = 3.0;
 float MAX_ADAPTIVE_ITER = 6.0;
@@ -32,9 +39,54 @@ struct SceneInfo {
 
 float kIdChecker = 0.0;
 
+
+float sampleChecker1d(vec2 p, vec2 dxdp, vec2 dydp) {
+  // Naive version
+  // return floor(mod(p.x, 2.0));
+
+  // Approximate pixel coverage
+  float d = (abs(dxdp) + abs(dydp)).x; // only along 1d x
+  float x = p.x;
+
+  {
+    // Integrate 1d checker on [x - d / 2, x + d / 2]
+    float x0 = mod(p.x - d / 2.0, 2.0);
+    float x1 = x0 + d;
+    float x1mod = mod(x1, 2.0);
+    float integral =
+        floor(x1 / 2.0) + max(x1mod - 1.0, 0.0) - max(x0 - 1.0, 0.0);
+    // return integral / d;
+  }
+
+  {
+    // Integrate 1d checker on [x0, x1] based on "xor formula"
+    float x0 = mod(p.x - d / 2.0, 2.0);
+    float x1 = mod(x0 + d, 2.0);
+    float integral = abs(x1 - 1.0) - abs(x0 - 1.0);
+    return 0.5 + 0.5 * integral / d;
+  }
+}
+
+float sampleChecker2d(vec2 p, vec2 dxdp, vec2 dydp) {
+  {
+    // Naive version
+    vec2 q = sign(mod(p, 2.0) - 1.0);
+    // return 0.5 - 0.5 * q.x * q.y;
+  }
+
+  // Approximate pixel coverage
+  vec2 l = abs(dxdp) + abs(dydp); // reasonably over-estimate by abs
+
+  // Integrate 2d checker on the pixel coverage based on "separable" xor formula
+  vec2 v0 = mod(p - l / 2.0, 2.0);
+  vec2 v1 = mod(p + l / 2.0, 2.0);
+  vec2 integrals = abs(v1 - 1.0) - abs(v0 - 1.0);
+  return 0.5 - 0.5 * (integrals.x * integrals.y) / (l.x * l.y);
+}
+
 float sampleChecker(vec2 p) {
-  bool odd = mod(floor(p.x) + floor(p.y), 2.0) != 0.0;
-  return float(odd);
+  vec2 q = sign(mod(p, 2.0) - 1.0);
+  return 0.5 - 0.5 * q.x * q.y;
 }
 
 vec3 sampleCheckerAdaptive(
@@ -42,6 +94,7 @@ vec3 sampleCheckerAdaptive(
   vec2 q = p.xz;
   vec2 v1 = abs(dxdp.xz);
   vec2 v2 = abs(dydp.xz);
+  mat2 T = mat2(v1, v2);
 
   float n1 = floor(length(v1));
   float n2 = floor(length(v2));
@@ -51,7 +104,7 @@ vec3 sampleCheckerAdaptive(
   float fac = 0.0;
   for (float i = 0.0; i < n1; i++) {
     for (float j = 0.0; j < n2; j++) {
-      mat2 T = mat2(v1, v2);
+      // Pick up center of n1 x n2 sub-pixel cells
       vec2 q_fract = -0.5 + (0.5 + vec2(i, j)) / vec2(n1, n2);
       fac += sampleChecker(q + T * q_fract);
     }
@@ -60,6 +113,8 @@ vec3 sampleCheckerAdaptive(
   vec3 color = vec3(fac);
 
   // [Debug] visualize adaptive size
+  // - as it can be seen from `debug_color = vec3(n1, 0.0, 0.0)`,
+  //   dxdp is not a problem for horizontal surface.
   if (DEBUG_FAC_ANIMATE) {
     float t = DEBUG_FAC_ANIMATE_SCALE_TIME * iTime;
     DEBUG_FAC = mix(0.2, 0.9, 1.0 - abs(mod(t, 2.0) - 1.0));
@@ -85,6 +140,22 @@ SceneInfo rayIntersect(vec3 orig, vec3 dir) {
   }
 
   return result;
+}
+
+vec3 shadeSurface(vec3 p, vec3 dxdp, vec3 dydp) {
+  vec3 color;
+  if (USE_ADAPTIVE) {
+    color = sampleCheckerAdaptive(p, dxdp, dydp);
+  } else
+  if (USE_CHECKER1D_INTEGRATED) {
+    float fac = sampleChecker1d(p.xz, dxdp.xz, dydp.xz);
+    color = vec3(fac);
+  } else
+  if (USE_CHECKER2D_INTEGRATED) {
+    float fac = sampleChecker2d(p.xz, dxdp.xz, dydp.xz);
+    color = vec3(fac);
+  }
+  return color;
 }
 
 vec3 shadeEnvironment(vec3 ray_dir) {
@@ -121,7 +192,7 @@ vec3 singleSample(vec2 frag_coord, mat3 inv_view_xform, mat4 camera_xform) {
       float ty = intersect_Line_Plane(ray_orig, ray_dir_y, p, normal);
       vec3 dxdp = ray_orig + tx * ray_dir_x - p;
       vec3 dydp = ray_orig + ty * ray_dir_y - p;
-      color = sampleCheckerAdaptive(p, dxdp, dydp);
+      color = shadeSurface(p, dxdp, dydp);
     }
   } else {
     color = shadeEnvironment(ray_dir);
