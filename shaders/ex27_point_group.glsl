@@ -56,18 +56,20 @@ vec3 SdfMod_translate2dBounded(
   return p;
 }
 
+// instancing on tetrahedron faces (i.e. tetrahedron vertices)
 vec3 SdfMod_tetrahedron(vec3 p, out float id) {
   // Construction based on four corners of cube
-  vec3 v0 = OZN.zzz;
-  vec3 v1 = OZN.xxz;
-  vec3 v2 = OZN.zxx;
-  vec3 v3 = OZN.xzx;
-  vec3 n1 = cross(v1, v2);
-  vec3 n2 = cross(v2, v3);
-  vec3 n3 = cross(v3, v1);
-  vec3 m1 = cross(v0, v1);
-  vec3 m2 = cross(v0, v2);
-  vec3 m3 = cross(v0, v3);
+  const vec3 v0 = OZN.zzz;
+  const vec3 v1 = OZN.xxz;
+  const vec3 v2 = OZN.zxx;
+  const vec3 v3 = OZN.xzx;
+  const vec3 n1 = cross(v1, v2);
+  const vec3 n2 = cross(v2, v3);
+  const vec3 n3 = cross(v3, v1);
+  const vec3 m1 = cross(v0, v1);
+  const vec3 m2 = cross(v0, v2);
+  const vec3 m3 = cross(v0, v3);
+  // TODO: possible to go without branches and just use single rotate3
   bool b1 = dot(p, n1) > 0.0;
   bool b2 = dot(p, n2) > 0.0;
   bool b3 = dot(p, n3) > 0.0;
@@ -89,6 +91,58 @@ vec3 SdfMod_tetrahedron(vec3 p, out float id) {
   if (!b3 && !c3 && c1) {
     p.yz = rotate2(M_PI) * p.yz;
     id = 3.0;
+  }
+  return p;
+}
+
+// Instancing on octahedron faces (i.e. cube vertices)
+vec3 SdfMod_cube(vec3 p, out float id) {
+  id = dot(max(vec3(0.0), sign(p)), vec3(4.0, 2.0, 1.0));
+  return abs(p);
+}
+
+// Instancing on cube faces (i.e. octahedron vertices)
+vec3 SdfMod_octahedron(vec3 p, out float id) {
+  const vec3 n1 = OZN.xxy;
+  const vec3 n2 = OZN.xzy;
+  const vec3 n3 = OZN.yxx;
+  const vec3 n4 = OZN.yxz;
+  const vec3 n5 = OZN.xyx;
+  const vec3 n6 = OZN.zyx;
+  const bool b1 = dot(p, n1) > 0.0;
+  const bool b2 = dot(p, n2) > 0.0;
+  const bool b3 = dot(p, n3) > 0.0;
+  const bool b4 = dot(p, n4) > 0.0;
+  const bool b5 = dot(p, n5) > 0.0;
+  const bool b6 = dot(p, n6) > 0.0;
+  if ( b1 &&  b2 &&  b5 && !b6) {
+    // no-op
+    id = 0.0;
+  } else
+  if (!b1 && !b2 && !b5 &&  b6) {
+    // z: +pi
+    p.xy = rotate2(M_PI) * p.xy;
+    id = 1.0;
+  } else
+  if ( b3 &&  b4 &&  b1 && !b2) {
+    // z: -pi/2
+    p.xy = rotate2(- M_PI / 2.0) * p.xy;
+    id = 2.0;
+  } else
+  if (!b3 && !b4 && !b1 &&  b2) {
+    // z: +pi/2
+    p.xy = rotate2(+ M_PI / 2.0) * p.xy;
+    id = 3.0;
+  } else
+  if ( b5 &&  b6 &&  b3 && !b4) {
+    // y: +pi/2
+    p.zx = rotate2(+ M_PI / 2.0) * p.zx;
+    id = 4.0;
+  } else
+  if (!b5 && !b6 && !b3 &&  b4) {
+    // y: -pi/2
+    p.zx = rotate2(- M_PI / 2.0) * p.zx;
+    id = 5.0;
   }
   return p;
 }
@@ -174,7 +228,42 @@ SceneInfo mainSdf(vec3 p) {
     vec3 q = SdfMod_translate2dBounded(p, XZ, -n * OZN.xx, n * OZN.xx, id);
     float sd = Sdf_box(q, size * OZN.xyx);
     sd = SdfOp_deepen(sd, depth);
-    ret = mergeSceneInfo(ret, sd, mod(id.x + id.y, 2.0) == 0.0 ? kIdChecker1 : kIdChecker2);
+    // ret = mergeSceneInfo(ret, sd, mod(id.x + id.y, 2.0) == 0.0 ? kIdChecker1 : kIdChecker2);
+  }
+  {
+    // Cube instancing demo
+    float id;
+    vec3 q = SdfMod_cube(p, id);
+    vec3 loc = 1.0 * OZN.xxx;
+    float r = 1.0;
+    float sd = Sdf_sphere(q - loc, r);
+    // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id * 7.0);
+  }
+  {
+    // Octahedron instancing demo
+    float id;
+    vec3 q = SdfMod_octahedron(p, id);
+    vec3 loc = 2.0 * OZN.xyy;
+    float r = 1.0;
+    float sd = Sdf_sphere(q - loc, r);
+    // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id * 7.0);
+  }
+  {
+    // Octahedron instancing demo 2
+    // - construct rhombic dodecahedron
+    float id;
+    vec3 q = SdfMod_octahedron(p, id);
+    vec3 loc = 1.0 * OZN.xyy;
+    float t = 1.0 / 4.0 * iTime;
+    float h = smoothstep(0.0, 1.0, abs(mod(t, 2.0) - 1.0));
+    float depth = 0.04;
+    // TODO: optimize 4 triangles
+    float sd1 = SDF_triangle(q - loc, h * OZN.xyy, OZN.yxx, OZN.yxz) - depth;
+    float sd2 = SDF_triangle(q - loc, h * OZN.xyy, OZN.yxz, OZN.yzz) - depth;
+    float sd3 = SDF_triangle(q - loc, h * OZN.xyy, OZN.yzz, OZN.yzx) - depth;
+    float sd4 = SDF_triangle(q - loc, h * OZN.xyy, OZN.yzx, OZN.yxx) - depth;
+    float sd = min(min(sd1, sd2), min(sd3, sd4));
+    ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id * 7.0);
   }
   {
     // Tetrahedron instancing demo 1
@@ -183,7 +272,7 @@ SceneInfo mainSdf(vec3 p) {
     vec3 loc = 1.0 * OZN.xxx;
     float r = 1.0;
     float sd = Sdf_sphere(q - loc, r);
-    ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id);
+    // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id);
   }
   {
     // Tetrahedron instancing demo 2
@@ -191,10 +280,11 @@ SceneInfo mainSdf(vec3 p) {
     vec3 q1 = SdfMod_tetrahedron(p, id1);
     vec3 q2 = SdfMod_tetrahedron(q1 - 1.0 * OZN.xxx, id2);
     float sd = Sdf_sphere(q2 - 0.5 * OZN.xxx, 0.5);
-    ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id1 * 12.34 + id2 * 34.56);
+    // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id1 * 12.34 + id2 * 34.56);
   }
   {
     // Tetrahedron instancing demo 3
+    // - construct tetrahedron by instancing single triangle
     vec3 loc1 = 2.5 * OZN.yxy;
     mat3 rot1 = rotate3(0.5 * M_PI * OZN.yxy);
     float id;
@@ -203,7 +293,7 @@ SceneInfo mainSdf(vec3 p) {
     float depth = 0.1;
     float ud = SDF_triangle(q - loc2, OZN.xxz, OZN.zxx, OZN.xzx);
     float sd = SdfOp_deepen(ud, depth);
-    ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id * 12.34);
+    // ret = mergeSceneInfo(ret, sd, kIdOtherMin + float(__LINE__) + id * 12.34);
   }
   return ret;
 }
