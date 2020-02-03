@@ -111,76 +111,34 @@ float SdfOp_ud(float sd) {
   return abs(sd);
 }
 
-vec2 baryCoordTriangle(vec3 p, vec3 u1, vec3 u2) {
-  // Barycentric coord (p = s * u1 + t * u2)
-  // assert - |u1|, |u2| = 1
-  //        - u1, u2: linear indep.
-  //        - p \in span{u1, u2}
-  mat2x3 A = mat2x3(u1, u2);
-  mat3x2 AT = transpose(A);
-  vec2 st = inverse(AT * A) * AT * p;
-  return st;
-}
-
-float SDF_Line(vec3 p, vec3 v) {
+float SDF_lineSegment(vec3 p, vec3 v, float t0, float t1) {
   // assert |v| = 1
   float t = dot(p, v);
-  return distance(p, t * v);
+  float tb = clamp(t, t0, t1);
+  return distance(p, tb * v);
 }
 
 float SDF_triangle(vec3 p, vec3 v1, vec3 v2, vec3 v3) {
-  // Striaght-forward implementation of distance to triangle
   vec3 u1 = v2 - v1;
   vec3 u2 = v3 - v2;
   vec3 u3 = v1 - v3;
-  float u1_l = length(u1);
-  float u2_l = length(u2);
-  float u3_l = length(u3);
-  vec3 u1_n = u1 / u1_l;
-  vec3 u2_n = u2 / u2_l;
-  vec3 u3_n = u3 / u3_l;
-  vec3 n = normalize(cross(u1_n, -u3_n));
-
-  // Derive distance on plane and its orthogonal direction
-  float ud_xy = 0.0, sd_z = 0.0;
-
-  // Project p onto the plane where triangle lives
-  sd_z = dot(p - v1, n);
-  vec3 q = p - sd_z * n;
-  vec2 uv = baryCoordTriangle(q - v1, u1_n, -u3_n)
-            / vec2(u1_l, u3_l);
-
-  float t1 = dot(q - v1, u1_n) / u1_l;
-  float t2 = dot(q - v2, u2_n) / u2_l;
-  float t3 = dot(q - v3, u3_n) / u3_l;
-
-  // Cases:
-  // 1. inside of triangle
-  if (0.0 < uv.x && 0.0 < uv.y && uv.x + uv.y < 1.0) {
-    ud_xy = 0.0;
-  } else
-  // 2. closest to some vertex
-  if (t1 < 0.0 && 1.0 < t3) {
-    ud_xy = distance(q, v1);
-  } else
-  if (t2 < 0.0 && 1.0 < t1) {
-    ud_xy = distance(q, v2);
-  } else
-  if (t3 < 0.0 && 1.0 < t2) {
-    ud_xy = distance(q, v3);
-  } else
-  // 3. closest to some edge
-  if (        0.0 < uv.x && uv.x + uv.y < 1.0) {
-    ud_xy = SDF_Line(q - v1, u1_n);
-  } else
-  if (        0.0 < uv.y &&         0.0 < uv.x) {
-    ud_xy = SDF_Line(q - v2, u2_n);
-  } else
-  if (uv.x + uv.y < 1.0  &&         0.0 < uv.y) {
-    ud_xy = SDF_Line(q - v3, u3_n);
-  }
-
-  return length(vec2(ud_xy, sd_z));
+  vec3 n  = cross(u1, -u3);
+  vec3 w1 = cross(n, u1);
+  vec3 w2 = cross(n, u2);
+  vec3 w3 = cross(n, u3);
+  vec3 q1 = p - v1;
+  vec3 q2 = p - v2;
+  vec3 q3 = p - v3;
+  float t1 = dot(q1, w1);
+  float t2 = dot(q2, w2);
+  float t3 = dot(q3, w3);
+  bool closest_to_face = t1 > 0.0 && t2 > 0.0 && t3 > 0.0;
+  float dn = abs(dot(q1, n)) / length(n);
+  float d1 = SDF_lineSegment(q1, normalize(u1), 0.0, length(u1));
+  float d2 = SDF_lineSegment(q2, normalize(u2), 0.0, length(u2));
+  float d3 = SDF_lineSegment(q3, normalize(u3), 0.0, length(u3));
+  float d = min(min(d1, d2), d3);
+  return closest_to_face ? dn : d;
 }
 
 //
