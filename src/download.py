@@ -23,7 +23,8 @@ TEMPLATE_RENDERPASS = """
 
 #
 # Scrape Shadertoy's data using https://www.browserless.io/
-# (as of today (2020/02/04), this services allows 50 requrests per day for free.)
+# (NOTE: as of today (2020/02/04), this services allows 50 requrests per day for free.)
+# (NOTE: this is not used since clearly scrape_v2 is much simpler)
 #
 # cf.
 # - https://www.shadertoy.com/js/pgWatch.js?v=79
@@ -52,6 +53,23 @@ def scrape(id):
   if not resp.status_code == requests.codes.ok:
     print(f"[scrape] Error\n{resp.text}", file=sys.stderr)
     return
+
+  return json.loads(resp.text)
+
+#
+# ShaderToy's unofficial/internal API endpoint
+# (NOTE: as of today (2020/02/04), it works as long as you set any same origin 'Referer' in header)
+#
+def scrape_v2(id):
+  req_args = dict(
+    url     = 'https://www.shadertoy.com/shadertoy',
+    headers = { 'Referer': 'https://www.shadertoy.com' },
+    data    = { 's': json.dumps({ 'shaders': [id] }) }
+  )
+  resp = requests.post(**req_args)
+  if not resp.status_code == requests.codes.ok:
+    print(f"[scrape_v2] Error\n{resp.text}", file=sys.stderr)
+    return None
 
   return json.loads(resp.text)
 
@@ -84,11 +102,15 @@ def download(id, key):
           data['code'] for data in resp_json['Shader']['renderpass']]
 
   if fallback_to_scrape:
-    print(f"[download] Fallback to scrape", file=sys.stderr)
-    data = scrape(id)
-    if data:
-      shader_info = data['info']
-      shader_passes = data['passes']
+    print(f"[download] Fallback to scrape_v2", file=sys.stderr)
+    resp_json = scrape_v2(id)
+    if resp_json:
+      assert resp_json[0] and \
+             resp_json[0]['info'] and \
+             resp_json[0]['renderpass']
+      shader_info   = resp_json[0]['info']
+      shader_passes = [
+          data['code'] for data in resp_json[0]['renderpass']]
 
   if not shader_info:
     print(f"[download] download unsucceeded", file=sys.stderr)
