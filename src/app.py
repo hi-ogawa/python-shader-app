@@ -1,6 +1,6 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools
 import OpenGL.GL as gl
-import os, array, ctypes, time
+import os, array, ctypes, time, collections
 from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config
@@ -104,7 +104,6 @@ class Renderer():
       gl.glUniform1i(self.program.uniformLocation(f"iSampler{i}"), i)
       gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{i}"))
       gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
-      gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
 
     mz, mw = mouse_press_pos or (0, H - 1)
     if mouse_down:
@@ -146,22 +145,36 @@ void main() {{
 {src}
 """
 
-# NOTE:
-# - QOpenGLFramebufferObject's texture parameter is GL_RGBA8 and no-mipmap by default.
+MyImage = collections.namedtuple('MyImage', [
+  'qimage', # QtGui.QImage
+  'handle'  # GLuint (OpenGL texture handle)
+])
+
 class MultiPassRenderer():
   def __init__(self):
     self.config = None     # dict (cf. parse_shader_config)
     self.renderers = {}    # map<str, Renderer>
     self.framebuffers = {} # map<str, (QOpenGLFramebufferObject, QOpenGLFramebufferObject)>
+    self.images = {}       # map<str, MyImage>
 
   def cleanup(self):
+    self.cleanup_renderers()
+    self.cleanup_images()
+    self.cleanup_framebuffers()
+    self.config = None
+
+  def cleanup_renderers(self):
     for renderer in self.renderers.values():
       renderer.cleanup()
-    for framebuffer in self.framebuffers.values():
-      pass # Default destructor handles freeing resource
     self.renderers = {}
-    self.framebuffers = {}
-    self.config = None
+
+  def cleanup_images(self):
+    for image in self.images.values():
+      gl.glDeleteTextures(image.handle)
+    self.images = {}
+
+  def cleanup_framebuffers(self):
+    self.framebuffers = {} # Default destructor frees gl resource
 
   def configure(self, src, W, H):
     self.config = parse_shader_config(src)
@@ -169,37 +182,76 @@ class MultiPassRenderer():
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")
       self.config = DEFAULT_CONFIG
     print(f"[MultiPassRenderer] Current configuration\n{self.config}")
-    self.configure_framebuffers(W, H)
+    self.configure_samplers(W, H)
     self.configure_programs(src)
 
-  def configure_framebuffers(self, W, H):
-    # Cleanup first (QOpenGLFramebufferObject's default destructor handles freeing resource)
-    self.framebuffers = {}
+  def configure_samplers(self, W, H):
+    self.cleanup_framebuffers()
+    self.cleanup_images()
 
-    # Validate and allocate double buffers
     for sampler in self.config['samplers']:
-      assert sampler['type'] == 'framebuffer' # currently framebuffer only
-      fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
-      fbo_format.setMipmap(sampler['mipmap'])
-      fbo_w, fbo_h = (W, H) if sampler['size'] == '$default' else sampler['size']
-      self.framebuffers[sampler['name']] = double_fbos = []
-      for i in range(2):
-        fbo = QtGui.QOpenGLFramebufferObject(fbo_w, fbo_h, fbo_format)
-        double_fbos.append(fbo)
-        texture_id = fbo.texture()
-        # Configure texture (mipmap-level, filter-mode, wrap-mode)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
-            gl.GL_LINEAR_MIPMAP_LINEAR if sampler['filter'] == 'linear' else gl.GL_NEAREST)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
-            gl.GL_LINEAR               if sampler['filter'] == 'linear' else gl.GL_NEAREST)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
-            gl.GL_REPEAT if sampler['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
-            gl.GL_REPEAT if sampler['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
-        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+      name = sampler['name']
+      assert sampler['type'] in ['file', 'framebuffer']
+      if sampler['type'] == 'file':
+        assert sampler['file']
+        image = self.create_image(sampler['file'])
+        self.configure_gl_texture(image.handle, sampler)
+        self.images[name] = image
+
+      if sampler['type'] == 'framebuffer':
+        w, h = (W, H) if sampler['size'] == '$default' else sampler['size']
+        fbo_pair = self.create_fbo_pair(w, h, sampler['mipmap'])
+        for fbo in fbo_pair:
+          self.configure_gl_texture(fbo.texture(), sampler)
+        self.framebuffers[name] = fbo_pair
+
+  def create_image(self, filename):
+    # Load image file via QImage
+    qimage = QtGui.QImage(filename)
+    qimage_format = qimage.format()
+    assert qimage_format != QtGui.QImage.Format_Invalid
+    if qimage_format != QtGui.QImage.Format_RGBA8888:
+      qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
+
+    # Allocate gl resource
+    handle = gl.glGenTextures(1)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+    W, H = qimage.width(), qimage.height()
+    gl.glTexImage2D(
+        gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, W, H, 0,
+        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+    return MyImage(qimage=qimage, handle=handle)
+
+  def create_fbo_pair(self, W, H, mipmap):
+    # framebuffer's storage is GL_RGBA8 by default
+    fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
+    fbo_format.setMipmap(mipmap)
+    fbo_pair = [
+      QtGui.QOpenGLFramebufferObject(W, H, fbo_format),
+      QtGui.QOpenGLFramebufferObject(W, H, fbo_format)
+    ]
+    return fbo_pair
+
+  def configure_gl_texture(self, handle, sampler_config):
+    # Setup mipmap-level, filter-mode, wrap-mode
+    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
+        gl.GL_REPEAT if sampler_config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
+        gl.GL_REPEAT if sampler_config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+    if sampler_config['filter'] == 'linear':
+      min_filter = gl.GL_LINEAR_MIPMAP_NEAREST if sampler_config['mipmap'] else gl.GL_LINEAR
+    else:
+      min_filter = gl.GL_NEAREST_MIPMAP_NEAREST if sampler_config['mipmap'] else gl.GL_NEAREST
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, min_filter)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
+        gl.GL_LINEAR               if sampler_config['filter'] == 'linear' else gl.GL_NEAREST)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
+    if sampler_config['mipmap'] and sampler_config['type'] == 'file':
+      gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
   def configure_programs(self, src):
     # cleanup first
@@ -212,7 +264,7 @@ class MultiPassRenderer():
       assert program['output'] == '$default' or \
            program['output'] in self.framebuffers.keys()
       for sampler_name in program['samplers']:
-        assert sampler_name in self.framebuffers.keys()
+        assert sampler_name in self.framebuffers.keys() or sampler_name in self.images.keys()
       self.renderers[program['name']] = renderer = Renderer()
       renderer.init_resource()
       N = len(program['samplers'])
@@ -224,19 +276,31 @@ class MultiPassRenderer():
       complete_src = FRAGMENT_SHADER_TEMPLATE.format(**complete_src_attrs)
       renderer.load_fragment_shader(complete_src)
 
-  # @param default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
+  # default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
   def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
     # Draw for each program
     for program in self.config['programs']:
       texture_ids = []
       for sampler_name in program['samplers']:
-        texture_ids.append(self.framebuffers[sampler_name][0].texture())
+        sampler = next(_ for _ in self.config['samplers'] if _['name'] == sampler_name)
+        if sampler['type'] == 'file':
+          handle = self.images[sampler_name].handle
+
+        if sampler['type'] == 'framebuffer':
+          fbo_pair = self.framebuffers[sampler_name]
+          handle = fbo_pair[0].texture()
+          gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+          gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+          gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+
+        texture_ids.append(handle)
 
       if program['output'] == '$default':
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
       else:
-        self.framebuffers[program['output']][1].bind()
+        fbo_pair = self.framebuffers[program['output']]
+        fbo_pair[1].bind()
 
       renderer = self.renderers[program['name']]
       renderer.draw(
@@ -298,7 +362,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
 
   # override
   def resizeGL(self, W, H):
-    self.renderer.configure_framebuffers(W, H)
+    self.renderer.configure_samplers(W, H) # TODO: reconfigure only framebuffers (not images)
     self.app_frame = 0
     self.update()
 
