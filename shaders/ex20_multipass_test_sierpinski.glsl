@@ -7,6 +7,10 @@
 samplers:
   - name: fb
     type: framebuffer
+    size: $default
+    mipmap: false
+    wrap: clamp
+    filter: nearest
 
 programs:
   - name: mainImage2

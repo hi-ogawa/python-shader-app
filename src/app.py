@@ -104,6 +104,7 @@ class Renderer():
       gl.glUniform1i(self.program.uniformLocation(f"iSampler{i}"), i)
       gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{i}"))
       gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+      gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
 
     mz, mw = mouse_press_pos or (0, H - 1)
     if mouse_down:
@@ -167,21 +168,38 @@ class MultiPassRenderer():
     if self.config is None:
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")
       self.config = DEFAULT_CONFIG
-
+    print(f"[MultiPassRenderer] Current configuration\n{self.config}")
     self.configure_framebuffers(W, H)
     self.configure_programs(src)
 
   def configure_framebuffers(self, W, H):
-    # cleanup first (QOpenGLFramebufferObject's default destructor handles freeing resource)
+    # Cleanup first (QOpenGLFramebufferObject's default destructor handles freeing resource)
     self.framebuffers = {}
 
-    # validate allocate double buffers
+    # Validate and allocate double buffers
     for sampler in self.config['samplers']:
       assert sampler['type'] == 'framebuffer' # currently framebuffer only
       fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
-      self.framebuffers[sampler['name']] = [
-        QtGui.QOpenGLFramebufferObject(W, H, fbo_format),
-        QtGui.QOpenGLFramebufferObject(W, H, fbo_format)]
+      fbo_format.setMipmap(sampler['mipmap'])
+      fbo_w, fbo_h = (W, H) if sampler['size'] == '$default' else sampler['size']
+      self.framebuffers[sampler['name']] = double_fbos = []
+      for i in range(2):
+        fbo = QtGui.QOpenGLFramebufferObject(fbo_w, fbo_h, fbo_format)
+        double_fbos.append(fbo)
+        texture_id = fbo.texture()
+        # Configure texture (mipmap-level, filter-mode, wrap-mode)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, texture_id)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER,
+            gl.GL_LINEAR_MIPMAP_LINEAR if sampler['filter'] == 'linear' else gl.GL_NEAREST)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
+            gl.GL_LINEAR               if sampler['filter'] == 'linear' else gl.GL_NEAREST)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
+            gl.GL_REPEAT if sampler['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
+            gl.GL_REPEAT if sampler['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
 
   def configure_programs(self, src):
     # cleanup first
@@ -282,6 +300,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   def resizeGL(self, W, H):
     self.renderer.configure_framebuffers(W, H)
     self.app_frame = 0
+    self.update()
 
   # override
   @exit_app_on_exception
