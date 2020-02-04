@@ -117,7 +117,10 @@ def download(id, key):
     return
 
   # Emit info
-  print(TEMPLATE_HEADER.format(url=url, info=json.dumps(shader_info, indent=2)))
+  header = TEMPLATE_HEADER.format(
+      url=f"https://www.shadertoy.com/view/{id}",
+      info=json.dumps(shader_info, indent=2))
+  print(header)
 
   # Emit renderpass
   for i, code in enumerate(shader_passes):
