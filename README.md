@@ -21,4 +21,7 @@ python -m unittest -v src/*_test.py
 
 # Download shader from shadertoy
 python -m src.download --key $(cat shadertoy.key) Xds3zN > shaders/shadertoy/Xds3zN.glsl
+
+# Download shadertoy's builtin textures
+python -c 'import src.texture; src.texture.shadertoy_download_all("shaders/images/shadertoy")'
 ```

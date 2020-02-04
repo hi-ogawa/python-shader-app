@@ -1,3 +1,5 @@
 shadertoy.key
 shaders/images/*.png
+shaders/images/shadertoy/*.jpg
+shaders/images/shadertoy/*.png
 shaders/shadertoy/*.glsl
