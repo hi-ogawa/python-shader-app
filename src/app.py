@@ -208,10 +208,11 @@ class MultiPassRenderer():
   def create_image(self, filename):
     # Load image file via QImage
     qimage = QtGui.QImage(filename)
+    qimage = qimage.mirrored(False, True) # flip y direction
     qimage_format = qimage.format()
     assert qimage_format != QtGui.QImage.Format_Invalid
     if qimage_format != QtGui.QImage.Format_RGBA8888:
-      qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
+      qimage = qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
 
     # Allocate gl resource
     handle = gl.glGenTextures(1)
