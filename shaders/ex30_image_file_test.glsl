@@ -7,7 +7,7 @@
 samplers:
   - name: tex
     type: file
-    file: shaders/images/shadertoy/texture_abstract_1.jpg
+    file: shaders/images/shadertoy/abstract_1.jpg
     mipmap: true
     wrap: repeat
     filter: linear
