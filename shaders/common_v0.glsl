@@ -88,6 +88,18 @@ mat3 inverseViewTransform(float yfov, vec2 Resolution) {
   return xform;
 }
 
+mat4 perspectiveTransform(float yfov, float aspect_ratio, float near, float far) {
+  float a = tan(yfov / 2.0);  // half y
+  float b = aspect_ratio * a; // half x
+  float c = 2.0 * far * near / (far - near);
+  float d = - (far + near) / (far - near);
+  return mat4(
+  1.0/a,   0.0,  0.0,  0.0,
+    0.0, 1.0/b,  0.0,  0.0,
+    0.0,   0.0,    c, -1.0,
+    0.0,   0.0,    d,  0.0);
+}
+
 mat4 lookatTransform(vec3 loc, vec3 lookat_loc, vec3 up) {
   vec3 z = normalize(loc - lookat_loc);
   vec3 x = - cross(z, up);

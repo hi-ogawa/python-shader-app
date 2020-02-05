@@ -5,3 +5,11 @@ curl -H 'user-agent:' http://www.pauldebevec.com/Probes/  \
 | python -c 'import sys, re; print(*set(re.findall(r"HREF=\"(.*\.hdr)\"", sys.stdin.read())))'  \
 | xargs -d ' ' -I@  wget -P . http://www.pauldebevec.com/Probes/@
 ```
+
+Convert all hdr into png
+
+```
+for FILE in *.hdr; do
+  oiiotool -i "${FILE}" --powc 0.45 -o "${FILE}.png"
+done
+```
