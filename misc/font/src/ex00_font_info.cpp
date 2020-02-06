@@ -122,10 +122,9 @@ int main(int argc, char **argv) {
   // Render to ascii
   printf("== Rendering '%c' ==\n", codepoint);
   {
-    uint8_t* bitmap;
-    int w, h;
     float scale_y = stbtt_ScaleForPixelHeight(&font, size_px);
-    bitmap = stbtt_GetGlyphBitmap(&font, 0, scale_y, glyph_index, &w, &h, 0, 0);
+    int w, h;
+    uint8_t* bitmap = stbtt_GetGlyphBitmap(&font, 0, scale_y, glyph_index, &w, &h, 0, 0);
     assert(bitmap);
     std::unique_ptr<uint8_t, decltype(&free)> raii_action{bitmap, &free};
 
