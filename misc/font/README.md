@@ -26,9 +26,8 @@ CC=clang CXX=clang++ LDFLAGS=-fuse-ld=lld \
   cmake -B build -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug
 ninja -C build
 
-# Run example (binary or from python)
+# Run example
 ./build/ex00_font_info /usr/share/fonts/TTF/Roboto-Regular.ttf J 16
-python src/ex00_font_info.py
 
 == Codepoint info ==
 codepoint: 'J'
