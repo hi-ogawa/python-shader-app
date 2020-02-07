@@ -1,13 +1,10 @@
-"""
-Usage example of stbtt wrapper
-
-python -c 'from src.ex01_stbtt import main; main("/usr/share/fonts/TTF/Roboto-Regular.ttf", "J")'
-"""
+#
+# Usage example of stbtt wrapper
+#
 
 from . import stbtt
 
 def main(fontfile, codepoint):
-  stbtt.load_library('./build/libstb.so')
   ctx = stbtt.StbttContext()
   ctx.load_font(fontfile)
   print(ctx.get_global_metrics())

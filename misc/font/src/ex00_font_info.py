@@ -81,6 +81,7 @@ num_vertices = stb.stbtt_GetGlyphShape(font, glyph_index, byref(ptr_vertices));
 assert num_vertices > 0
 
 # Define stbtt_vertex's byte alignment in ctypes
+# TODO: somehow we get "uninitialized-value" looking data for `padding`, `cx1`, `cy1`.
 class Vertex(ctypes.Structure):
   _fields_ = \
     [(name, c_short) for name in ['x', 'y', 'cx', 'cy', 'cx1', 'cy1']] + \

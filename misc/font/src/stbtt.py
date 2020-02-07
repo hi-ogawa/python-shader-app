@@ -2,22 +2,21 @@
 # stbtt wrapper based on what I've tried in ex00_font_info.py
 #
 
-import ctypes
+import os, ctypes
 from ctypes import c_int, c_float, c_void_p, c_short, c_char, byref, string_at
 
-stb = None
-def load_library(filename):
-  global stb
 
-  # dlopen (LD)
-  stb = ctypes.cdll.LoadLibrary(filename)
+# dlopen (LD)
+library_file = os.path.join(os.path.dirname(__file__), '..', 'build', 'libstb.so')
+stb = ctypes.cdll.LoadLibrary(library_file)
 
-  # Define non-int function return value
-  stb.stbtt_ext_AllocFontinfo.restype = c_void_p
-  stb.stbtt_ScaleForPixelHeight.restype = c_float
-  stb.stbtt_GetGlyphBitmap.restype = c_void_p
+# Define non-int function return value
+stb.stbtt_ext_AllocFontinfo.restype = c_void_p
+stb.stbtt_ScaleForPixelHeight.restype = c_float
+stb.stbtt_GetGlyphBitmap.restype = c_void_p
 
 
+# TODO: somehow we get "uninitialized-value" looking data for `padding`, `cx1`, `cy1`.
 class StbttVertex(ctypes.Structure):
   _fields_ = \
     [(name, c_short) for name in ['x', 'y', 'cx', 'cy', 'cx1', 'cy1']] + \
@@ -34,8 +33,6 @@ class StbttVertex(ctypes.Structure):
 
 class StbttContext():
   def __init__(self):
-    if stb is None:
-      raise RuntimeError("First call load_libstb to load dynamic library")
     self.font = c_void_p(stb.stbtt_ext_AllocFontinfo())
     self.fontdata = None
 
@@ -75,10 +72,14 @@ class StbttContext():
         self.font, glyph_index, *[byref(metrics[k]) for k in ['x_min', 'y_min', 'x_max', 'y_max']]);
     return dict((k, v.value) for k, v in metrics.items())
 
+  def get_glyph_kern_advance(self, glyph1, glyph2):
+    return stb.stbtt_GetGlyphKernAdvance(self.font, glyph1, glyph2)
+
   def get_glyph_shape(self, glyph_index, copy=True): # -> vertices
     ptr_vertices = c_void_p(0)
     num_vertices = stb.stbtt_GetGlyphShape(self.font, glyph_index, byref(ptr_vertices))
-    assert ptr_vertices.value > 0
+    if num_vertices == 0:
+      return []
 
     ArrayType = StbttVertex * num_vertices
     vertices = ArrayType.from_address(ptr_vertices.value)
