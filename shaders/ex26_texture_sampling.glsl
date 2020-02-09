@@ -98,9 +98,38 @@ float integrateTriChecker_m0(vec2 p) {
     + 0.5 * t * t;
 }
 
+float integrateTriChecker_sierpinski2_m0(vec2 p) {
+  // - assert p.x, p.y >= 0
+  // - Split into 4 rectangles
+  vec2 pi = floor(p);
+  vec2 pf = p - pi;
+  vec2 pf2 = min(vec2(0.5), pf);
+  float t = max(0.0, pf.x + pf.y - 1.0);
+  float t2 = max(0.0, pf2.x + pf2.y - 0.5);
+  return
+    + 0.5 * pi.x * pi.y
+    + 0.5 * pf.x * pf.x * pi.y
+    + 0.5 * pf.y * pf.y * pi.x
+    + 0.5 * t * t
+    + 0.5 * 0.5 * 0.5 * pi.x * pi.y
+    + 0.5 * pf2.x * pf2.x * pi.y
+    + 0.5 * pf2.y * pf2.y * pi.x
+    + 0.5 * t2 * t2;
+}
+
+float integrateTriChecker_sierpinski2(vec2 m, vec2 M) {
+  // - assert m < M
+  // - Reduce to m = (0, 0) cases
+  return
+    + integrateTriChecker_sierpinski2_m0(vec2(M.x, M.y))
+    - integrateTriChecker_sierpinski2_m0(vec2(m.x, M.y))
+    - integrateTriChecker_sierpinski2_m0(vec2(M.x, m.y))
+    + integrateTriChecker_sierpinski2_m0(vec2(m.x, m.y));
+}
+
 float integrateTriChecker(vec2 m, vec2 M) {
   // - assert m < M
-  // - Reduce to bbox_min = (0, 0) cases
+  // - Reduce to m = (0, 0) cases
   return
     + integrateTriChecker_m0(vec2(M.x, M.y))
     - integrateTriChecker_m0(vec2(m.x, M.y))
@@ -110,7 +139,7 @@ float integrateTriChecker(vec2 m, vec2 M) {
 
 float sampleTriChecker(vec2 p, vec2 dxdp, vec2 dydp) {
   // Trnasform to regular triangle barycentric coord
-  mat2 A = mat2(
+  mat2 A = 2.0 * mat2(
     1.0, 0.0,
     0.5, 0.5 * sqrt(3.0));
   mat2 inv_A = inverse(A);
@@ -125,11 +154,14 @@ float sampleTriChecker(vec2 p, vec2 dxdp, vec2 dydp) {
     // return 0.5 + 0.5 * q.x * q.y * t;
   }
 
-  // Over-estimate pixel coverage by abs box
+  // Over-estimate pixel coverage by abs rectangle
+  // NOTE: this estimates gets too "over" when view is aligned to diaglonal
+  //       e.g. for this triangle pattern case, 1 of 3 edges
   vec2 v = abs(dxdp) + abs(dydp);
 
   // Integrate and take average
-  return integrateTriChecker(p - 0.5 * v, p + 0.5 * v) / (v.x * v.y);
+  // return integrateTriChecker(p - 0.5 * v, p + 0.5 * v) / (v.x * v.y);
+  return integrateTriChecker_sierpinski2(p - 0.5 * v, p + 0.5 * v) / (v.x * v.y);
 }
 
 float sampleChecker(vec2 p) {
