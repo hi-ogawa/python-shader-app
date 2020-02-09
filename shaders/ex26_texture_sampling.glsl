@@ -15,8 +15,9 @@ float AA = 1.0;
 float SCALE_TIME = 1.0 / 48.0;
 float RAY_MAX_T = 1000.0;
 
-bool USE_ADAPTIVE = true;
-bool USE_CHECKER1D_INTEGRATED = true;
+bool USE_ADAPTIVE = false;
+bool USE_TRI_CHECKER_INTEGRATED = true;
+bool USE_CHECKER1D_INTEGRATED = false;
 bool USE_CHECKER2D_INTEGRATED = false;
 
 float BASE_ADAPTIVE_ITER = 3.0;
@@ -84,6 +85,53 @@ float sampleChecker2d(vec2 p, vec2 dxdp, vec2 dydp) {
   return 0.5 - 0.5 * (integrals.x * integrals.y) / (l.x * l.y);
 }
 
+float integrateTriChecker_m0(vec2 p) {
+  // - assert p.x, p.y >= 0
+  // - Split into 4 rectangles
+  vec2 pi = floor(p);
+  vec2 pf = p - pi;
+  float t = max(0.0, pf.x + pf.y - 1.0);
+  return
+    + 0.5 * pi.x * pi.y
+    + 0.5 * pf.x * pf.x * pi.y
+    + 0.5 * pf.y * pf.y * pi.x
+    + 0.5 * t * t;
+}
+
+float integrateTriChecker(vec2 m, vec2 M) {
+  // - assert m < M
+  // - Reduce to bbox_min = (0, 0) cases
+  return
+    + integrateTriChecker_m0(vec2(M.x, M.y))
+    - integrateTriChecker_m0(vec2(m.x, M.y))
+    - integrateTriChecker_m0(vec2(M.x, m.y))
+    + integrateTriChecker_m0(vec2(m.x, m.y));
+}
+
+float sampleTriChecker(vec2 p, vec2 dxdp, vec2 dydp) {
+  // Trnasform to regular triangle barycentric coord
+  mat2 A = mat2(
+    1.0, 0.0,
+    0.5, 0.5 * sqrt(3.0));
+  mat2 inv_A = inverse(A);
+  p = inv_A * p;
+  dxdp = inv_A * dxdp;
+  dydp = inv_A * dydp;
+
+  {
+    // Naive version
+    vec2 q = sign(mod(p, 2.0) - 1.0);
+    float t = sign(mod(p.x + p.y, 2.0) - 1.0);
+    // return 0.5 + 0.5 * q.x * q.y * t;
+  }
+
+  // Over-estimate pixel coverage by abs box
+  vec2 v = abs(dxdp) + abs(dydp);
+
+  // Integrate and take average
+  return integrateTriChecker(p - 0.5 * v, p + 0.5 * v) / (v.x * v.y);
+}
+
 float sampleChecker(vec2 p) {
   vec2 q = sign(mod(p, 2.0) - 1.0);
   return 0.5 - 0.5 * q.x * q.y;
@@ -144,6 +192,10 @@ SceneInfo rayIntersect(vec3 orig, vec3 dir) {
 
 vec3 shadeSurface(vec3 p, vec3 dxdp, vec3 dydp) {
   vec3 color;
+  if (USE_TRI_CHECKER_INTEGRATED) {
+    float fac = sampleTriChecker(p.xz, dxdp.xz, dydp.xz);
+    color = vec3(fac);
+  } else
   if (USE_ADAPTIVE) {
     color = sampleCheckerAdaptive(p, dxdp, dydp);
   } else
