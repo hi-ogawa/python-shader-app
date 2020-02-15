@@ -2,6 +2,7 @@ Objectives
 
 - Explore font data structure, rendering, etc...
 - Explore how to wrap c api with python ctypes
+- Create simple font (cf. make_font_macro.py, ex36_font_v2.glsl)
 
 
 References
