@@ -1,6 +1,8 @@
 <!--
-  TODO
-  - arc representation convertion (svg <-> our format)
+TODO
+- arc representation convertion (svg <-> our format)
+- especially bad looking ones
+  - s, 4, 5
 -->
 
 <!-- viewBox = -d -d width (something-big) -->
@@ -186,6 +188,10 @@
     <!-- lower case -->
     <g id="en_a">
       <path d="M 1 1  A 1 1  0  1 1  1 0.999"/> <!-- arc 0 1  1  0 1 -->
+      <path d="M 1 2  L 1 0"/>
+    </g>
+    <g id="_en_a">
+      <path d="M 1 1  A 1 1  0  1 1  1 0.999"/> <!-- arc 0 1  1  0 1 -->
       <path d="M -1 2.25  A 1 1  0  0 0  1 2.25"/> <!-- arc 0 2.25  1  0.5 0 -->
       <path d="M 1 2.25  L 1 0"/>
     </g>
@@ -346,9 +352,9 @@
     <g id="num_2">
       <!-- Find tangent line -->
       <!-- t = asin(1/sqrt(1^2 + 3^2)) ~= 0.3218 -->
-      <!-- -0.3218 / 2pi = 0.06693 -->
+      <!-- -2 * t / 2pi = -0.1024 -->
       <!-- cos(2t) = 0.8,  sin(2t) = 0.6 -->
-      <path d="M -1 3  A 1 1  0  1 0  0.8 2.4"/>  <!-- arc 0 3  1  0.5 -0.06693 -->
+      <path d="M -1 3  A 1 1  0  1 0  0.8 2.4"/>  <!-- arc 0 3  1  0.5 -0.1024 -->
       <path d="M 0.8 2.4  L -1 0"/>
       <path d="M -1 0  L 1 0"/>
     </g>
@@ -357,7 +363,7 @@
       <path d="M  0 2  A 1 1  0  1 0  -1 1"/>  <!-- arc 0 1  1  0.25 -0.5 -->
     </g>
     <g id="num_4">
-      <path d="M -0.5 4  L -1 1"/>
+      <path d="M -0.75 4  L -1 1"/>
       <path d="M -1 1  L 1 1"/>
       <path d="M 0 2.5  L 0 0"/>
     </g>
@@ -440,41 +446,219 @@
       (125, '}')
       (126, '~')
      -->
+
     <g id="ascii_32">
+      <!-- (32, ' ') -->
     </g>
     <g id="ascii_33">
+      <!-- (33, '!') -->
       <path d="M  0 4  L 0 1.25"/>
       <path d="M  0 0.25  L 0 0"/>
     </g>
     <g id="ascii_34">
-      <path d="M -0.5 4  L -0.5 3.5"/>
-      <path d="M  0.5 4  L  0.5 3.5"/>
+      <!-- (34, '"') -->
+      <path d="M -0.5 4  L -0.5 3"/>
+      <path d="M  0.5 4  L  0.5 3"/>
     </g>
     <g id="ascii_35">
+      <!-- (35, '#') -->
+      <path d="M -0.5 4  L -0.5 0"/>
+      <path d="M  0.5 4  L  0.5 0"/>
+      <path d="M -1 3  L 1 3"/>
+      <path d="M -1 1  L 1 1"/>
     </g>
     <g id="ascii_36">
+      <!-- (36, '$') -->
+      <!-- <use xlink:href="#en_S" /> -->
+      <path d="M 1 3  A 1 1  0  1 1  0 2"/>  <!-- arc 0 3  1  0 0.75 -->
+      <path d="M 0 2  A 1 1  0  1 0  -1 1"/>  <!-- arc 0 1  1  0.25 -0.5 -->
+      <path d="M 0 4.25  L  0 -0.25"/>
     </g>
     <g id="ascii_37">
+      <!-- (37, '%') -->
+      <path d="M 1 4  L  -1 0"/>
+      <path d="M -0.5 4  A 0.5 0.5  0  1 0  -0.501 4"/>  <!-- arc -0.5 3.5  0.5  0.25 1.25 -->
+      <path d="M  0.5 1  A 0.5 0.5  0  1 1  0.501 1"/>  <!-- arc  0.5 0.5  0.5  0.25 1.25 -->
     </g>
     <g id="ascii_38">
+      <!-- (38, '&') -->
+      <!-- Find tangent line -->
+      <!-- s = acos((r1 + r2) / dist) = acos((0.75 + 1) / 2) ~= 0.5053 -->
+      <!-- s / 2pi = 0.0804 -->
+      <!-- 0.25 + s / 2pi = 0.3304 -->
+      <!-- 0.25 - s / 2pi = 0.1696 -->
+      <!-- cos(pi/2 - s) = 0.4841 -->
+      <!-- sin(pi/2 - s) = 0.875  -->
+      <!-- cos(pi/2 - s) * r1 = 0.363 -->
+      <!-- sin(pi/2 - s) * r1 = 0.656  -->
+      <!-- t = asin(r1 / sqrt(10)) = 0.239 -->
+      <!-- 2t / 2pi = 0.076 -->
+      <!-- cos(2t) * r1 = 0.666 -->
+      <!-- sin(st) * r1 = 0.347 -->
+      <path d="M 1 1.5  L  1 1"/>
+      <path d="M 1 1  A 1 1  0  1 0  -0.4841 1.875"/>  <!-- arc 0 1  1  1.0 0.3304 -->
+      <path d="M -0.4841 1.875  L  0.363 2.344"/>
+      <path d="M 0.363 2.344  A 0.75 0.75  0  1 1  -0.666 2.653"/>  <!-- arc 0 3  0.75  -0.1696 0.576 -->
+      <path d="M -0.666 2.653  L 1 0"/>
+    </g>
+    <g id="_ascii_38">
+      <!-- (38, '&') -->
+      <!-- cf. num_2 -->
+      <!-- Find tangent line -->
+      <!-- t = asin(1/sqrt(1^2 + 3^2)) ~= 0.3218 -->
+      <!-- 0.5 + 2t / 2pi = 0.6024 -->
+      <path d="M 1 1.5  L  1 1"/>
+      <path d="M 1 1  A 1 1  0  1 0  0.001 2"/>  <!-- arc 0 1  1  0 -0.75 -->
+      <path d="M 0 2  A 1 1  0  1 1  -0.8 2.4"/>  <!-- arc 0 3  1  -0.25 0.6024 -->
+      <path d="M -0.8 2.4  L 1 0"/>
     </g>
     <g id="ascii_39">
+      <!-- (39, "'") -->
+      <path d="M  0 4  L  0 3"/>
     </g>
     <g id="ascii_40">
+      <!-- (40, '(') -->
+      <!-- r = 2 * sqrt(2) ~=  2.828 -->
+      <path d="M 0 4  A 2.828 2.828  0  0 1  0 0"/>  <!-- arc 2 2  2.828  0.375 0.625 -->
     </g>
     <g id="ascii_41">
+      <!-- (41, ')') -->
+      <path d="M 0 4  A 2.828 2.828  0  0 0  0 0"/>  <!-- arc -2 2  2.828  0.125 -0.125 -->
     </g>
     <g id="ascii_42">
+      <!-- (42, '*') -->
+      <path d="M  0 2  L  0 1"/>
+      <path d="M -1 1.25  L  0 1"/>
+      <path d="M  1 1.25  L  0 1"/>
+      <path d="M -0.75 0  L  0 1"/>
+      <path d="M  0.75 0  L  0 1"/>
     </g>
     <g id="ascii_43">
+      <!-- (43, '+') -->
+      <path d="M  0 2  L  0 0"/>
+      <path d="M -1 1  L  1 1"/>
     </g>
     <g id="ascii_44">
+      <!-- (44, ',') -->
+      <path d="M 0 0  L  -0.5 -1  "/>
     </g>
     <g id="ascii_45">
+      <!-- (45, '-') -->
+      <path d="M -1 1  L  1 1"/>
     </g>
     <g id="ascii_46">
+      <!-- (46, '.') -->
+      <path d="M 0 0  L  0 0"/>
     </g>
     <g id="ascii_47">
+      <!-- (47, '/') -->
+      <path d="M 0.5 4  L  -0.5 0"/>
+    </g>
+
+    <g id="ascii_58">
+      <!-- (58, ':') -->
+      <path d="M 0 2.5  L  0 2"/>
+      <path d="M 0 0.5  L  0 0"/>
+    </g>
+    <g id="ascii_59">
+      <!-- (59, ';') -->
+      <path d="M 0 2.5  L  0 2"/>
+      <path d="M 0 0.5  L  -0.5 -0.5"/>
+    </g>
+    <g id="ascii_60">
+      <!-- (60, '<') -->
+      <path d="M 1 2  L  -1 1"/>
+      <path d="M -1 1  L  1 0"/>
+    </g>
+    <g id="ascii_61">
+      <!-- (61, '=') -->
+      <path d="M -1 1.5  L  1 1.5"/>
+      <path d="M -1 0.5  L  1 0.5"/>
+    </g>
+    <g id="ascii_62">
+      <!-- (62, '>') -->
+      <path d="M -1 2  L  1 1"/>
+      <path d="M 1 1  L  -1 0"/>
+    </g>
+    <g id="ascii_63">
+      <!-- (63, '?') -->
+      <!-- t = asin(1 / 2) ~= 0.5235 -->
+      <!-- t / 2pi ~= 0.083 -->
+      <!-- sin(t) = 0.866, cos(t) = 0.5-->
+      <path d="M -1 3  A 1 1  0  1 0  0.866 2.5"/>  <!-- arc 0 3  1  0.5 -0.083 -->
+      <path d="M  0.866 2.5  L 0 1"/>
+      <path d="M 0 0  L 0 0"/>
+    </g>
+    <g id="ascii_64">
+      <!-- (64, '@') -->
+      <path d="M 0.5 2  A 0.5 0.5  0  1 1  0.5 1.999"/> <!-- arc 0 2  0.5  0 1 -->
+      <path d="M 0.5 2.5  L 0.5 1.5"/>
+
+      <!-- <use xlink:href="#en_O" /> -->
+      <path d="M  0 4  A 1 1  0  0 1  -1 3"/>  <!-- arc 0 3  1  0.25 0.5 -->
+      <path d="M -1 3  L -1 1"/>
+      <path d="M -1 1  A 1 1  0  1 1  1 1"/>  <!-- arc 0 1  1  0.5 1.0 -->
+      <path d="M 1 1  L 1 3"/>
+      <path d="M 1 3  A 1 1  0  0 1  0 4"/>  <!-- arc 0 3  1  0 0.25 -->
+    </g>
+
+    <g id="ascii_91">
+      <!-- (91, '[') -->
+      <path d="M -0.5 4  L 0.5 4"/>
+      <path d="M -0.5 4  L -0.5 0"/>
+      <path d="M -0.5 0  L 0.5 0"/>
+    </g>
+    <g id="ascii_92">
+      <!-- (92, '\\') -->
+      <path d="M -0.5 4  L 0.5 0"/>
+    </g>
+    <g id="ascii_93">
+      <!-- (93, ']') -->
+      <path d="M -0.5 4  L 0.5 4"/>
+      <path d="M  0.5 4  L 0.5 0"/>
+      <path d="M -0.5 0  L 0.5 0"/>
+    </g>
+    <g id="ascii_94">
+      <!-- (94, '^') -->
+      <path d="M -1 3  L 0 4"/>
+      <path d="M 0 4  L 1 3"/>
+    </g>
+    <g id="ascii_95">
+      <!-- (95, '_') -->
+      <path d="M -1 0  L 1 0"/>
+    </g>
+    <g id="ascii_96">
+      <!-- (96, '`') -->
+      <path d="M -0.5 4  L 0.5 3"/>
+    </g>
+
+    <g id="ascii_123">
+      <!-- (123, '{') -->
+      <path d="M 0.5 4  A 0.5 0.5 0  0 1  0 3.5"/>  <!-- arc 0.5 3.5  0.5  0.25 0.5 -->
+      <path d="M 0 3.5  L 0 2.5"/>
+      <path d="M 0 2.5  A 0.5 0.5 0  0 0  -0.5 2"/>  <!-- arc -0.5 2.5  0.5  0 -0.25 -->
+      <path d="M -0.5 2  A 0.5 0.5 0  0 0  0 1.5"/>  <!-- arc -0.5 1.5  0.5  0.25 0 -->
+      <path d="M 0 1.5  L 0 0.5"/>
+      <path d="M 0 0.5  A 0.5 0.5 0  0 1  0.5 0"/>  <!-- arc 0.5 0.5  0.5 0.5 0.75 -->
+    </g>
+    <g id="ascii_124">
+      <!-- (124, '|') -->
+      <path d="M 0 4  L 0 0"/>
+    </g>
+    <g id="ascii_125">
+      <!-- (125, '}') -->
+      <path d="M -0.5 4  A 0.5 0.5 0  0 0  0 3.5"/>  <!-- arc -0.5 3.5  0.5  0.25 0 -->
+      <path d="M 0 3.5  L 0 2.5"/>
+      <path d="M 0 2.5  A 0.5 0.5 0  0 1  0.5 2"/>  <!-- arc 0.5 2.5  0.5  0.5 0.75 -->
+      <path d="M 0.5 2  A 0.5 0.5 0  0 1  0 1.5"/>  <!-- arc 0.5 1.5  0.5  0.25 0.5 -->
+      <path d="M 0 1.5  L 0 0.5"/>
+      <path d="M 0 0.5  A 0.5 0.5 0  0 0  -0.5 0"/>  <!-- arc -0.5 0.5  0.5  0 -0.25 -->
+    </g>
+    <g id="ascii_126">
+      <!-- (126, '~') -->
+      <!-- 1 / sqrt(2) = 0.707 -->
+      <path d="M -1 1  A 0.707 0.707  0  0 0  0 1"/>  <!-- arc -0.5 0.5  0.707  0.375 0.125 -->
+      <path d="M  0 1  A 0.707 0.707  0  0 1  1 1"/>  <!-- arc  0.5 1.5  0.707  0.625 0.875 -->
     </g>
   </defs>
 
@@ -568,6 +752,27 @@
       <use x="8"  y="-91.0" xlink:href="#ascii_46" />
       <use x="12" y="-91.0" xlink:href="#ascii_47" />
 
+      <use x="0"  y="-97.5" xlink:href="#ascii_58" />
+      <use x="4"  y="-97.5" xlink:href="#ascii_59" />
+      <use x="8"  y="-97.5" xlink:href="#ascii_60" />
+      <use x="12" y="-97.5" xlink:href="#ascii_61" />
+      <use x="16" y="-97.5" xlink:href="#ascii_62" />
+      <use x="20" y="-97.5" xlink:href="#ascii_63" />
+      <use x="0"  y="-104.0" xlink:href="#ascii_64" />
+
+      <use x="0"  y="-110.5" xlink:href="#ascii_91" />
+      <use x="4"  y="-110.5" xlink:href="#ascii_92" />
+      <use x="8"  y="-110.5" xlink:href="#ascii_93" />
+      <use x="12" y="-110.5" xlink:href="#ascii_94" />
+      <use x="16" y="-110.5" xlink:href="#ascii_95" />
+      <use x="20" y="-110.5" xlink:href="#ascii_96" />
+
+      <use x="0"  y="-117.0" xlink:href="#ascii_123" />
+      <use x="4"  y="-117.0" xlink:href="#ascii_124" />
+      <use x="8"  y="-117.0" xlink:href="#ascii_125" />
+      <use x="12" y="-117.0" xlink:href="#ascii_126" />
+
+
       <!-- Grid -->
       <use x="0"  y="0"     xlink:href="#_grid" />
       <use x="4"  y="0"     xlink:href="#_grid" />
@@ -659,7 +864,30 @@
       <use x="12" y="-91.0" xlink:href="#_grid" />
       <use x="16" y="-91.0" xlink:href="#_grid" />
       <use x="20" y="-91.0" xlink:href="#_grid" />
-
+      <use x="0"  y="-97.5" xlink:href="#_grid" />
+      <use x="4"  y="-97.5" xlink:href="#_grid" />
+      <use x="8"  y="-97.5" xlink:href="#_grid" />
+      <use x="12" y="-97.5" xlink:href="#_grid" />
+      <use x="16" y="-97.5" xlink:href="#_grid" />
+      <use x="20" y="-97.5" xlink:href="#_grid" />
+      <use x="0"  y="-104.0" xlink:href="#_grid" />
+      <use x="4"  y="-104.0" xlink:href="#_grid" />
+      <use x="8"  y="-104.0" xlink:href="#_grid" />
+      <use x="12" y="-104.0" xlink:href="#_grid" />
+      <use x="16" y="-104.0" xlink:href="#_grid" />
+      <use x="20" y="-104.0" xlink:href="#_grid" />
+      <use x="0"  y="-110.5" xlink:href="#_grid" />
+      <use x="4"  y="-110.5" xlink:href="#_grid" />
+      <use x="8"  y="-110.5" xlink:href="#_grid" />
+      <use x="12" y="-110.5" xlink:href="#_grid" />
+      <use x="16" y="-110.5" xlink:href="#_grid" />
+      <use x="20" y="-110.5" xlink:href="#_grid" />
+      <use x="0"  y="-117.0" xlink:href="#_grid" />
+      <use x="4"  y="-117.0" xlink:href="#_grid" />
+      <use x="8"  y="-117.0" xlink:href="#_grid" />
+      <use x="12" y="-117.0" xlink:href="#_grid" />
+      <use x="16" y="-117.0" xlink:href="#_grid" />
+      <use x="20" y="-117.0" xlink:href="#_grid" />
     </g>
   </g>
 </svg>
