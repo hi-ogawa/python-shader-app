@@ -24,7 +24,7 @@ const vec2 BBOX_Y = vec2(-2.5, 6);
 const vec2 CENTER = vec2(0.0, (BBOX_Y[0] + BBOX_Y[1]) / 2.0);
 
 // font width in scene size
-float FONT_WIDTH = 0.5;
+float FONT_WIDTH = 0.4;
 
 
 //

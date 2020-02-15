@@ -44,7 +44,7 @@ def main():
         # ARC command from comment e.g. <!-- arc 1 1  1  0.5 0.25 -->
         if tokens[0] == 'M' and tokens[3] == 'A':
           m = re.search("<!-- arc (.*) -->", line.strip())
-          assert m, "'arc' comment not found"
+          assert m, f"'arc' comment not found: {line}"
           comment_tokens = [float(_) for _ in m.group(1).split()]
           data = dict(
               cx=comment_tokens[0],
@@ -60,7 +60,8 @@ def main():
         data = dict(
             name=state.codepoint,
             commands='\n  ' +  '\n  '.join(state.commands))
-        print(TEMPLATE_FONT.format(**data), '\n')
+        print(TEMPLATE_FONT.format(**data))
+        print()
         state.codepoints += [state.codepoint]
         state.codepoint = None
         state.commands = []
