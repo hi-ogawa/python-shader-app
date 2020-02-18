@@ -1,11 +1,3 @@
-<!--
-TODO
-- [x] solve tangent
-- [ ] arc representation convertion (svg <-> our format)
-- [ ] especially bad looking ones
-  - s, 4, 5
--->
-
 <!-- viewBox = -d -d width (something-big) -->
 <!-- width  = 4 x (num-columns) + 2d -->
 <!--        = 4 x 6 + 2 -->

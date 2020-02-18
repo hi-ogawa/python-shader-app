@@ -1,9 +1,3 @@
-#
-# Usage:
-#   python misc/font/make_font_macro.py < misc/font/font.svg > shaders/utils/font_data_v0.glsl
-#
-
-
 TEMPLATE_FONT = "SDF_FONT({name},{commands})"
 TEMPLATE_LINE = "SDF_FONT_LINE({x0}, {y0}, {x1}, {y1})"
 TEMPLATE_ARC  = "SDF_FONT_ARC ({cx}, {cy}, {r}, {t0}, {t1})"

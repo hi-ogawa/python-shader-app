@@ -1,9 +1,3 @@
-#
-# Usage:
-#   python -c 'from solve_tangent import *; pp(circle_point(0, 3, 1, -1, 0))'
-#   python -c 'from solve_tangent import *; pp(circle_circle(0, 3, 0.75, 0, 1, 1))'
-#
-
 import numpy as np
 
 def pp(result):
