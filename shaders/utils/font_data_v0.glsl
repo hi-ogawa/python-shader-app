@@ -175,12 +175,12 @@ SDF_FONT(en_h,
 
 SDF_FONT(en_i,
   SDF_FONT_LINE(0, 2, 0, 0)
-  SDF_FONT_LINE(0, 3, 0, 3))
+  SDF_FONT_LINE(0, 3, 0, 2.99))
 
 SDF_FONT(en_j,
   SDF_FONT_LINE(1, 2, 1, 0)
   SDF_FONT_ARC (0.0, 0.0, 1.0, 0.0, -0.5)
-  SDF_FONT_LINE(1, 3, 1, 3))
+  SDF_FONT_LINE(1, 3, 1, 2.99))
 
 SDF_FONT(en_k,
   SDF_FONT_LINE(-1, 4, -1, 0)
@@ -228,7 +228,7 @@ SDF_FONT(en_s,
 
 SDF_FONT(en_t,
   SDF_FONT_LINE(0, 3, 0, 0.5)
-  SDF_FONT_ARC (0.0, 1.0, 1.0, 0.5, 1.0)
+  SDF_FONT_ARC (0.5, 0.5, 0.5, 0.5, 0.75)
   SDF_FONT_LINE(0.5, 0, 1, 0)
   SDF_FONT_LINE(-1, 2, 1, 2))
 
@@ -399,7 +399,7 @@ SDF_FONT(ascii_62,
 SDF_FONT(ascii_63,
   SDF_FONT_ARC (0.0, 3.0, 1.0, 0.5, -0.083)
   SDF_FONT_LINE(0.866, 2.5, 0, 1)
-  SDF_FONT_LINE(0, 0, 0, 0))
+  SDF_FONT_LINE(0, 0.001, 0, 0))
 
 SDF_FONT(ascii_64,
   SDF_FONT_ARC (0.0, 2.0, 0.5, 0.0, 1.0)

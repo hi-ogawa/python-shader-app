@@ -21,5 +21,6 @@ python -m src.app --width 500 --height 500 shaders/ex36_font_v2.glsl
 
 TODO
 
+- [ ] generate truetype font file
 - [ ] arc representation convertion (svg <-> our format)
 - [ ] Improve especially bad looking ones (s, 4, 5)

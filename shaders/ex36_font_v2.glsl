@@ -9,19 +9,23 @@
 // Parameters
 //
 
-float TIME_SCALE = 2.0;
+float SCALE_TIME = 8.0;
+bool  STROKE_MODE = true;
 
 // AA in pixel width
 float AA = 2.0;
 
 // isoline effect
-float ISOLINE_STEP = 20.0;
+float ISOLINE_STEP = 10.0;
 float ISOLINE_WIDTH = 1.0;
 float ISOLINE_EXTENT = 200.0;
 
 // scene coordinate frame
-const vec2 BBOX_Y = vec2(-2.5, 6);
-const vec2 CENTER = vec2(0.0, (BBOX_Y[0] + BBOX_Y[1]) / 2.0);
+const vec2 FONT_SIZE = vec2(4.0, 7.0);
+const float NUM_ROWS = 8.0;
+const float NUM_COLUMNS = 9.0;
+const vec2 BBOX_X = vec2(0.0, FONT_SIZE.x * NUM_COLUMNS) + vec2(-2.0, 2.0);
+const float BBOX_Y1 = FONT_SIZE.y;
 
 // font width in scene size
 float FONT_WIDTH = 0.4;
@@ -51,7 +55,7 @@ float Sdf_arc(vec2 p, float t0, float t1) {
 
   // Check if "(0, 0) -> p" crosses arc
   if ((t0 <= t1 && tt <= t1) || (t1 <= t0 && t1 <= tt - 1.0)) {
-    return abs(length(p) - 1);
+    return abs(length(p) - 1.0);
   }
 
   // Otherwise return distance to two endpoints
@@ -69,7 +73,7 @@ float SdfOp_isoline(float sd, float _step, float width) {
 
 
 //
-// Define font geometry via macro
+// Define font geometry via macro (define SdfFont_xxx and SdfFontStroke_xxx)
 //
 
 #define SDF_FONT(NAME, RULE)     \
@@ -85,9 +89,49 @@ float SdfOp_isoline(float sd, float _step, float width) {
 #define SDF_FONT_ARC(cx, cy, r, t0, t1) \
   ud = min(ud, Sdf_arc((p - vec2(cx, cy)) / r, t0, t1) * r);
 
-// calls SDF_FONT macro (also defines FONT_LIST_NAMES, FONT_NUM_NAMES, etc...)
+// this calls SDF_FONT macro (also defines FONT_LIST_NAMES, FONT_NUM_NAMES, etc...)
 #include "utils/font_data_v0.glsl"
 
+
+#undef SDF_FONT
+#define SDF_FONT(NAME, RULE)     \
+  float SdfFontStroke_##NAME(vec2 p, float state, out float stroke) { \
+    float ud = 1e30;                                     \
+    stroke = 0.0;                                        \
+    RULE                                                 \
+    return ud;                                           \
+  }
+
+#undef SDF_FONT_LINE
+#define SDF_FONT_LINE(x0, y0, x1, y1) \
+  {                                                                    \
+    vec2 v = vec2(x1, y1) - vec2(x0, y0);                              \
+    float l = length(v);                                               \
+    float ll = min(state - stroke, l);                                 \
+    if (ll > 0.0) {                                                    \
+      ud = min(ud, Sdf_lineSegment(p - vec2(x0, y0), v / l, 0.0, ll)); \
+    }                                                                  \
+    stroke += l;                                                       \
+  }
+
+#undef SDF_FONT_ARC
+#define SDF_FONT_ARC(cx, cy, r, t0, t1) \
+  {                                                                       \
+    float s = sign(t1 - t0);                                              \
+    float l = r * 2.0 * M_PI * abs(t1 - t0);                              \
+    float ll = min(state - stroke, l);                                    \
+    float tt = ll / (r * 2.0 * M_PI);                                     \
+    if (tt > 0.0) {                                                       \
+      ud = min(ud, Sdf_arc((p - vec2(cx, cy)) / r, t0, t0 + s * tt) * r); \
+    }                                                                     \
+    stroke += l;                                                          \
+  }
+
+
+// include again to define different variant
+#undef FONT_LIST_NAMES
+#undef FONT_NUM_NAMES
+#include "utils/font_data_v0.glsl"
 
 
 //
@@ -105,14 +149,34 @@ SceneInfo mergeSceneInfo(SceneInfo info, float t, float id) {
   return info;
 }
 
-SceneInfo getSceneSdf(vec2 p) {
+SceneInfo getSceneSdf(vec2 p, float time) {
   SceneInfo result;
   result.t = 1e30;
 
   float index = 0.0;
-  #define DRAW(NAME) result = mergeSceneInfo(result, SdfFont_##NAME(p - 4.0 * vec2(index, 0.0)), index++);
-    FONT_LIST_NAMES(DRAW)
-  #undef DRAW
+  if (STROKE_MODE) {
+    float state = SCALE_TIME * time;
+    float len = 0.0;
+    float ud;
+    vec2 q;
+    #define DRAW(NAME)                                                         \
+        q = vec2(0.5 + mod(index, NUM_COLUMNS), - floor(index / NUM_COLUMNS)); \
+        ud = SdfFontStroke_##NAME(p - FONT_SIZE * q, state -= len, len),       \
+        result = mergeSceneInfo(result, ud, index++);
+      FONT_LIST_NAMES(DRAW)
+    #undef DRAW
+
+  } else {
+    float ud;
+    vec2 q;
+    #define DRAW(NAME)                                                         \
+        q = vec2(0.5 + mod(index, NUM_COLUMNS), - floor(index / NUM_COLUMNS)); \
+        ud = SdfFont_##NAME(p - FONT_SIZE * q);                                \
+        result = mergeSceneInfo(result, ud, index++);
+      FONT_LIST_NAMES(DRAW)
+    #undef DRAW
+  }
+
 
   result.t -= FONT_WIDTH / 2.0;
   return result;
@@ -132,11 +196,10 @@ vec3 easyColor(float t) {
 
 void mainImage(out vec4 frag_color, vec2 frag_coord) {
   // "window -> scene" transform
-  float xform_s = (BBOX_Y[1] - BBOX_Y[0]) / iResolution.y;
+  float xform_s = (BBOX_X[1] - BBOX_X[0]) / iResolution.x;
   vec2 xform_t = vec2(
-      CENTER.x - (CENTER.y - BBOX_Y[0]) * iResolution.z,
-      BBOX_Y[0]);
-  xform_t.x += TIME_SCALE * iTime;
+      BBOX_X[0],
+      BBOX_Y1 - (BBOX_X[1] - BBOX_X[0]) / iResolution.z);
 
   {
     // Support move by mouse
@@ -156,7 +219,7 @@ void mainImage(out vec4 frag_color, vec2 frag_coord) {
     //
     // Main rendering
     //
-    SceneInfo info = getSceneSdf(p);
+    SceneInfo info = getSceneSdf(p, iTime);
     float fac = smoothCoverage(info.t, AA * xform_s);
     vec3 c = easyColor(info.id);
 
@@ -193,13 +256,12 @@ void mainImage(out vec4 frag_color, vec2 frag_coord) {
     }
     {
       // Axis
-      float step = 4.0;
       float w = 1.0 * xform_s;
       float sd = 1e30;
-      sd = min(sd, SdfOp_isoline(p.x, step, w));
-      sd = min(sd, abs(p.y) - w / 2.0);
+      sd = min(sd, SdfOp_isoline(p.x, FONT_SIZE.x, w));
+      sd = min(sd, SdfOp_isoline(p.y, FONT_SIZE.y, w));
       float fac = smoothCoverage(sd, AA * xform_s);
-      color = mix(color, vec3(0.0), 0.2 * fac);
+      color = mix(color, vec3(0.0), 0.4 * fac);
     }
   }
 
