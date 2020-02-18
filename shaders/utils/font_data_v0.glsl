@@ -1,3 +1,7 @@
+//
+// AUTO GENERATED
+//
+
 SDF_FONT(en_A,
   SDF_FONT_LINE(0, 4, -1, 0)
   SDF_FONT_LINE(0, 4, 1, 0)
@@ -71,7 +75,7 @@ SDF_FONT(en_M,
 SDF_FONT(en_N,
   SDF_FONT_LINE(-1, 4, -1, 0)
   SDF_FONT_LINE(-1, 4, 1, 0)
-  SDF_FONT_LINE(1, 4, 1, 0))
+  SDF_FONT_LINE(1, 0, 1, 4))
 
 SDF_FONT(en_O,
   SDF_FONT_ARC (0.0, 3.0, 1.0, 0.25, 0.5)
@@ -399,7 +403,7 @@ SDF_FONT(ascii_62,
 SDF_FONT(ascii_63,
   SDF_FONT_ARC (0.0, 3.0, 1.0, 0.5, -0.083)
   SDF_FONT_LINE(0.866, 2.5, 0, 1)
-  SDF_FONT_LINE(0, 0.001, 0, 0))
+  SDF_FONT_LINE(0, 0.01, 0, 0))
 
 SDF_FONT(ascii_64,
   SDF_FONT_ARC (0.0, 2.0, 0.5, 0.0, 1.0)
@@ -554,4 +558,3 @@ SDF_FONT(ascii_126,
   _(ascii_126)
 
 #define FONT_NUM_NAMES 95
-

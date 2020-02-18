@@ -15,7 +15,7 @@ python -c 'from solve_tangent import *; pp(circle_circle(0, 3, 0.75, 0, 1, 1))'
 python misc/la_font/make_font_macro.py < misc/la_font/font.svg > shaders/utils/font_data_v0.glsl
 
 # Run sdf rendering shader
-python -m src.app --width 500 --height 500 shaders/ex36_font_v2.glsl
+python -m src.app --width 300 --height 600 shaders/ex36_font_v2.glsl
 ```
 
 

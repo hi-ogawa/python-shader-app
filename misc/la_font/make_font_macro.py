@@ -1,3 +1,8 @@
+TEMPLATE_HEADER = f"""
+//
+// AUTO GENERATED
+//
+""".strip()
 TEMPLATE_FONT = "SDF_FONT({name},{commands})"
 TEMPLATE_LINE = "SDF_FONT_LINE({x0}, {y0}, {x1}, {y1})"
 TEMPLATE_ARC  = "SDF_FONT_ARC ({cx}, {cy}, {r}, {t0}, {t1})"
@@ -10,6 +15,9 @@ def main():
   from types import SimpleNamespace
   import re
 
+  result = ''
+  result += TEMPLATE_HEADER
+  result += '\n\n'
 
   # Parse line by line
   state = SimpleNamespace(codepoint=None, commands=[], codepoints=[])
@@ -54,19 +62,18 @@ def main():
         data = dict(
             name=state.codepoint,
             commands='\n  ' +  '\n  '.join(state.commands))
-        print(TEMPLATE_FONT.format(**data))
-        print()
+        result += TEMPLATE_FONT.format(**data)
+        result += '\n\n'
         state.codepoints += [state.codepoint]
         state.codepoint = None
         state.commands = []
 
   # Finally emit some statistics
   names = ''.join([f" \\\n  _({name})" for name in state.codepoints])
-  print(TEMPLATE_FONT_LIST_NAMES.format(names=names))
-  print()
-  print(TEMPLATE_FONT_NUM_NAMES.format(num=len(state.codepoints)))
-  print()
-
+  result += TEMPLATE_FONT_LIST_NAMES.format(names=names)
+  result += '\n\n'
+  result += TEMPLATE_FONT_NUM_NAMES.format(num=len(state.codepoints))
+  print(result)
 
 if __name__ == '__main__':
   main()

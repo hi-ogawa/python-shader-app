@@ -22,7 +22,6 @@ float ISOLINE_EXTENT = 200.0;
 
 // scene coordinate frame
 const vec2 FONT_SIZE = vec2(4.0, 7.0);
-const float NUM_ROWS = 8.0;
 const float NUM_COLUMNS = 9.0;
 const vec2 BBOX_X = vec2(0.0, FONT_SIZE.x * NUM_COLUMNS) + vec2(-2.0, 2.0);
 const float BBOX_Y1 = FONT_SIZE.y;
