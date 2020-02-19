@@ -56,7 +56,7 @@ def download(id, out_dir):
 
   name = shader_info['name']
   simple_name = re.sub('[^0-9a-z]', '_', name.lower())
-  filename = f"{id}_{simple_name}.glsl"
+  filename = f"{simple_name}__{id}.glsl"
 
   with open(os.path.join(out_dir, filename), 'w') as f:
     f.write(result)
