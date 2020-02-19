@@ -1,6 +1,11 @@
 LA Font (Line/Arc Font)
 
 
+Demo (on shadertoy)
+
+- https://www.shadertoy.com/view/3tySRR
+
+
 Usage
 
 ```
@@ -16,11 +21,15 @@ python misc/la_font/make_font_macro.py < misc/la_font/font.svg > shaders/utils/f
 
 # Run sdf rendering shader
 python -m src.app --width 300 --height 600 shaders/ex36_font_v2.glsl
+
+# Test arc format convertion
+python -c 'from convert_arc import *; test("font.svg")'
 ```
 
 
 TODO
 
-- [ ] generate truetype font file
-- [ ] arc representation convertion (svg <-> our format)
-- [ ] Improve especially bad looking ones (s, 4, 5)
+- [x] Auto convert arc representation (svg <-> our format)
+- [ ] Generate truetype font file
+- [ ] Improve some bad looking ones ("s", "4", "5", etc..)
+- [ ] More codepoints
