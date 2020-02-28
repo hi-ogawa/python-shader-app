@@ -125,6 +125,7 @@ float mix3(
   return mix(fxy0, fxy1, v.z);
 }
 
+// NOTE: this doesn't work when lookat_loc != 0 (see pivotTransform_v2)
 mat4 pivotTransform(vec3 init_loc, vec3 lookat_loc, vec2 delta) {
   // horizontal move
   vec3 roty = vec3(0.0, -delta.x, 0.0);
@@ -138,6 +139,25 @@ mat4 pivotTransform(vec3 init_loc, vec3 lookat_loc, vec2 delta) {
   mat3 rotx = axisAngleTransform(rotx_axis, rotx_angle);
   mat4 xform = mat4(rotx) * xform_tmp;
   return xform;
+}
+
+mat4 pivotTransform_v2(vec3 init_loc, vec3 lookat_loc, vec2 delta) {
+  // relative to lookat_loc
+  vec3 init_loc_rel = init_loc - lookat_loc;
+
+  // horizontal move
+  mat3 roty = rotate3(vec3(0.0, -delta.x, 0.0));
+  vec3 loc_rel_tmp = roty * init_loc_rel;
+  mat4 xform_tmp = lookatTransform(loc_rel_tmp, vec3(0.0), vec3(0.0, 1.0, 0.0));
+
+  // vertical move
+  vec3 rotx_axis = vec3(xform_tmp[0]);
+  float rotx_angle = delta.y;
+  mat3 rotx = axisAngleTransform(rotx_axis, rotx_angle);
+  mat4 xform = mat4(rotx) * xform_tmp;
+
+  // move to lookat_loc
+  return translate3(+lookat_loc) * xform;
 }
 
 float Quick_hash(float t, float scale) {
