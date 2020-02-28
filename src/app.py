@@ -314,7 +314,7 @@ class MultiPassRenderer():
 
 
 class MyWidget(QtWidgets.QOpenGLWidget):
-  def __init__(self, fragment_shader_file, parent=None):
+  def __init__(self, fragment_shader_file, play_mode, parent=None):
     super(MyWidget, self).__init__(parent)
     self.renderer = MultiPassRenderer()
     self.fragment_shader_file = fragment_shader_file
@@ -324,7 +324,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     self.shader_error = None
 
     # TODO: organize time/frame refresh logic (e.g. for reload shader, resize, gui time slider etc...)
-    self.full_throttle = True
+    self.full_throttle = play_mode
     self.app_time = 0                          # float \in [0, app_time_maximum]
     self.last_full_throttle_epoch_time = None  # float
     self.app_time_maximum = 20                 # float
@@ -364,8 +364,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   # override
   def resizeGL(self, W, H):
     self.renderer.configure_samplers(W, H) # TODO: reconfigure only framebuffers (not images)
-    self.app_frame = 0
-    self.update()
+    self.init_frame()
 
   # override
   @exit_app_on_exception
@@ -374,6 +373,17 @@ class MyWidget(QtWidgets.QOpenGLWidget):
       self.renderPre()
       self.render()
       self.renderPost()
+
+  def init_frame(self):
+    # Render twice for making multipass shader dev easier with pausing
+    # (usually initialize at iFrame = 0 and do something at iFrame > 0)
+    self.makeCurrent()
+    self.app_frame = 0
+    self.paintGL()
+    self.paintGL()
+    self.doneCurrent()
+    self.update()
+
 
   def load_fragment_shader_file(self):
     self.makeCurrent()
@@ -384,8 +394,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     except ShaderError as e:
       self.shader_error = e
     self.last_full_throttle_epoch_time = None
-    self.app_frame = 0
-    self.update()
+    self.init_frame()
     self.doneCurrent()
 
   def enable_debug(self):
@@ -448,7 +457,7 @@ def load_ui_file(file):
   return widget
 
 
-def setup_gui(fragment_shader_file, w, h, x, y):
+def setup_gui(fragment_shader_file, w, h, x, y, play_mode):
   # TODO: Temporary inline class/instance
   self = type('MyWindow', (object,), {})()
   self.window = load_ui_file(os.path.join(os.path.dirname(__file__), 'app.ui'))
@@ -456,7 +465,7 @@ def setup_gui(fragment_shader_file, w, h, x, y):
   self.pause_icon = QtGui.QIcon.fromTheme('media-playback-pause-symbolic')
 
   # Add widgets not in .ui file
-  self.widget = MyWidget(fragment_shader_file)
+  self.widget = MyWidget(fragment_shader_file, play_mode=play_mode)
   self.dialog = QtWidgets.QMessageBox() # shader error dialog
 
   # Grab children from .ui file
@@ -506,8 +515,7 @@ def setup_gui(fragment_shader_file, w, h, x, y):
     v = self.slider.value() / self.slider_resolution
     if self.slider.isSliderDown() and v < self.widget.app_time_maximum:
       self.widget.app_time = v
-      self.widget.app_frame = 0
-      self.widget.update()
+      self.widget.init_frame()
       update_gui()
 
   def handle_lineedit_finished(*_):
@@ -577,13 +585,13 @@ def setup_misc():
   QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)
 
 
-def run_app(fragment_shader_file, offscreen_output_file, w, h, x=2**7, y=2**7):
+def run_app(fragment_shader_file, offscreen_output_file, w, h, x=2**7, y=2**7, play_mode=True):
   setup_misc()
   app = QtWidgets.QApplication.instance() or QtWidgets.QApplication()
   if offscreen_output_file:
     render_offscreen(fragment_shader_file, offscreen_output_file, w, h)
   else:
-    window = setup_gui(fragment_shader_file, w, h, x, y)
+    window = setup_gui(fragment_shader_file, w, h, x, y, play_mode)
     setup_interrupt_handler(app)
     app.exec_()
 
@@ -595,8 +603,9 @@ def main():
   parser.add_argument('--width',  type=int, default=2**9 * 5//4, help='resolution width')
   parser.add_argument('--height', type=int, default=2**9,        help='resolution height')
   parser.add_argument('--offscreen', type=str, default=None,     help='offscreen render output file')
+  parser.add_argument('--paused', action='store_true', default=False, help='start app as paused mode')
   args = parser.parse_args()
-  run_app(args.file, args.offscreen, args.width, args.height)
+  run_app(args.file, args.offscreen, args.width, args.height, play_mode=not args.paused)
 
 
 if __name__ == '__main__':
