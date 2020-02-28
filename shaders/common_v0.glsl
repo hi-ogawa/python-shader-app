@@ -112,6 +112,14 @@ mat4 lookatTransform(vec3 loc, vec3 lookat_loc, vec3 up) {
   return xform;
 }
 
+mat3 zframeTransform(vec3 z) {
+  // assert |z| = 1
+  vec3 x = cross(z, (abs(z.x) < 0.9) ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0));
+  x = normalize(x);
+  vec3 y = cross(z, x);
+  return mat3(x, y, z);
+}
+
 float mix2(float f00, float f10, float f01, float f11, vec2 uv) {
   return mix(mix(f00, f10, uv.x), mix(f01, f11, uv.x), uv.y);
 }
