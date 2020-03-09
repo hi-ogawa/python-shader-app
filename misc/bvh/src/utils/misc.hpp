@@ -1,11 +1,10 @@
 #pragma once
 
 #include <array>
-#include <vector>
-#include <string>
 #include <optional>
 #include <algorithm>
 
+#include "common.hpp"
 #include "format.hpp"
 #include "geometry.hpp"
 
@@ -87,6 +86,21 @@ inline string join(const vector<string>& ls, const string& sep = " ") {
   }
   return result;
 }
+inline string dirname(const string& s) {
+  return string{s, 0, s.rfind('/')};
+}
+inline string basename(const string& s) {
+  auto npos = std::string::npos;
+  auto pos = s.rfind("/");
+  return pos == npos ? s : s.substr(pos + 1, npos);
+}
+
+//
+// Quick debug print macro
+//
+#define ddd(FORMAT, ...) \
+  print(string{"[debug:%s:%d] "} + FORMAT + "\n", basename(__FILE__), __LINE__, __VA_ARGS__)
+
 
 //
 // .ppm writer

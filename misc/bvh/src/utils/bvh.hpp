@@ -1,13 +1,11 @@
 #pragma once
 
-#include <cstdio>
-
-#include <vector>
-#include <string>
 #include <deque>
 
+#include "common.hpp"
 #include "format.hpp"
 #include "geometry.hpp"
+#include "misc.hpp"
 
 
 namespace utils {
@@ -138,7 +136,7 @@ void Bvh::splitPrimitives(
 Bvh Bvh::create(
     const vector<fvec3>& vertices, const vector<uvec3>& indices,
     const uint8_t max_primitive) {
-  assert(max_primitive >= 1);
+  MY_ASSERT(max_primitive >= 1);
 
   // Result data
   vector<uint32_t> primitives;
@@ -214,9 +212,6 @@ Bvh Bvh::create(
     splitPrimitives(
         tmp_node.begin, tmp_node.end, centers, bboxes, /*inout*/ primitives,
         /*out*/ axis, middle, bbox_begin, bbox_end);
-    // print("[debug:bvh] %s\n", node.bbox);
-    // print("[debug:bvh] l: %s\n", bbox_begin);
-    // print("[debug:bvh] r: %s\n", bbox_end);
 
     // TmpNode x 2
     uint32_t size_now = nodes.size();

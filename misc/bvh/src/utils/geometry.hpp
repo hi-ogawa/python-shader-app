@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vector>
 #include <array>
 #include <ostream>
 
 #include <glm/glm.hpp>
 
+#include "common.hpp"
 #include "format.hpp"
 
 

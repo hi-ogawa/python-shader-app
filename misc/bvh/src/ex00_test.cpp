@@ -101,15 +101,44 @@ TEST_CASE("Bvh-bunny") {
     REQUIRE(std::all_of(first, last, [](auto i){ return 0 <= i && i < 948; }));
   }
   {
-    // parent bbox containes child bbox
-    for (BvhNode& node : bvh.nodes) {
-      if (node.isLeaf())
-        continue;
-      BvhNode& l  = bvh.nodes[node.begin + 0];
-      BvhNode& r = bvh.nodes[node.begin + 1];
-      // REQUIRE(node.bbox.contains(l.bbox));
-      // REQUIRE(node.bbox.contains(r.bbox));
+    bool correct_containment = true;
+    for (auto i = 0; i < bvh.nodes.size(); i++) {
+      auto& node = bvh.nodes[i];
+      if (node.isLeaf()) {
+        for (auto j = 0; j < node.num_primitives; j++) {
+          uint32_t prim = bvh.primitives[node.begin + j];
+          Triangle tri = getTriangle(vertices, indices, prim);
+          correct_containment &= node.bbox.contains(tri.bbox());
+          // REQUIRE(node.bbox.contains(tri.bbox()));
+          // print("[debug:contains] node:%d -> tri:%d\n", i, prim);
+          // print("[debug:contains] node.bbox: %s\n", node.bbox);
+          // print("[debug:contains] tri.bbox:  %s\n", tri.bbox());
+        }
+      } else {
+        BvhNode& l = bvh.nodes[node.begin + 0];
+        BvhNode& r = bvh.nodes[node.begin + 1];
+        correct_containment &= node.bbox.contains(l.bbox);
+        correct_containment &= node.bbox.contains(r.bbox);
+        // REQUIRE(node.bbox.contains(l.bbox));
+        // REQUIRE(node.bbox.contains(r.bbox));
+        // print("[debug:contains] node:%d -> node:%d\n", i, node.begin + 0);
+        // print("[debug:contains] node:%d -> node:%d\n", i, node.begin + 1);
+        // print("[debug:contains] node.bbox: %s\n", node.bbox);
+        // print("[debug:contains] l.bbox: %s\n", l.bbox);
+        // print("[debug:contains] r.bbox: %s\n", r.bbox);
+      }
     }
+    REQUIRE(correct_containment);
+
+    // // parent bbox containes child bbox
+    // for (BvhNode& node : bvh.nodes) {
+    //   if (node.isLeaf())
+    //     continue;
+    //   BvhNode& l  = bvh.nodes[node.begin + 0];
+    //   BvhNode& r = bvh.nodes[node.begin + 1];
+    //   // REQUIRE(node.bbox.contains(l.bbox));
+    //   // REQUIRE(node.bbox.contains(r.bbox));
+    // }
   }
 
   // Test Bvh::rayIntersect
@@ -180,6 +209,7 @@ TEST_CASE("Renderer-simple") {
     }
     REQUIRE(correct_containment);
   }
+  return;
 
   fvec3 camera_loc = fvec3(1, 1, 1) * 5.0f;
   fvec3 lookat_loc = fvec3(0, 0, 0);

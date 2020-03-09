@@ -14,7 +14,7 @@ CC=clang CXX=clang++ LDFLAGS=-fuse-ld=lld \
 ninja -C build/Debug
 
 # Run render
-./build/Debug/ex02  -w 400 -h 400 --infile data/bunny/reconstruction/bun_zipper_res2.ply --outfile images/tmp.ppm
+./build/Debug/ex02  -w 400 -h 400 --infile data/bunny/reconstruction/bun_zipper_res2.ply --outfile images/bunny2.ppm
 
 # Run test
 ./build/Debug/ex00

@@ -1,10 +1,8 @@
 #pragma once
 
 #include <cstdio>
-#include <cassert>
 
-#include <string>
-#include <sstream>
+#include "common.hpp"
 
 
 namespace utils {
@@ -48,7 +46,7 @@ inline const char* toScalarOrChars(const std::string& v) {
 template<typename... Ts>
 inline std::string formatScalarOrString(const char* format_str, const Ts&... vs) {
   int size = std::snprintf(nullptr, 0, format_str, toScalarOrChars(vs)...);
-  assert(size >= 0);
+  MY_ASSERT(size >= 0);
   std::string result;
   result.resize(size);
   std::snprintf(result.data(), size + 1, format_str, toScalarOrChars(vs)...);
