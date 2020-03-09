@@ -1,0 +1,6 @@
+[submodule "misc/bvh/thirdparty/Catch2"]
+	path = misc/bvh/thirdparty/Catch2
+	url = git@github.com:catchorg/Catch2.git
+[submodule "misc/bvh/thirdparty/glm"]
+	path = misc/bvh/thirdparty/glm
+	url = git@github.com:g-truc/glm.git
