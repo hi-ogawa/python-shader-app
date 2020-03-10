@@ -80,3 +80,8 @@ inline void print(const std::string& fmtstr, const Ts&... vs) {
 }
 
 } // namespace utils
+
+
+// Quick debug print macro
+#define ddd(FORMAT, ...) \
+  utils::print(string{"[debug:%s:%d] "} + FORMAT + "\n", string(__FILE__), __LINE__, __VA_ARGS__)

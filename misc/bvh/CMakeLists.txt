@@ -40,3 +40,6 @@ target_link_libraries(ex01 PRIVATE catch glm)
 
 add_executable(ex02 src/ex02_renderer_v2.cpp)
 target_link_libraries(ex02 PRIVATE glm)
+
+add_executable(ex03 src/ex03_test.cpp)
+target_link_libraries(ex03 PRIVATE catch glm)

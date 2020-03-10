@@ -1,0 +1,23 @@
+camera:
+  type: MyCamera
+  params:
+    w: 500
+    h: 400
+    # camera_loc: 0.1 0.3 0.3 # for bunny
+    camera_loc: -0.1 0.3 0.3 # for dragon
+    lookat_scene_center: 1
+
+scene:
+  type: MyScene
+  params:
+    # file: data/bunny/reconstruction/bun_zipper.ply
+    file: data/dragon_recon/dragon_vrip_res2.ply
+
+integrator:
+  type: NormalIntegrator
+  # type: HitIntegrator
+  params:
+
+output:
+  params:
+    file: images/example.ppm

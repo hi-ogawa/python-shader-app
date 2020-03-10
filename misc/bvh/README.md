@@ -13,8 +13,11 @@ CC=clang CXX=clang++ LDFLAGS=-fuse-ld=lld \
   cmake -B build/Debug -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=Debug
 ninja -C build/Debug
 
-# Run render
+# Run rendering
 ./build/Debug/ex02  -w 400 -h 400 --infile data/bunny/reconstruction/bun_zipper_res2.ply --outfile images/bunny2.ppm
+
+# Run rendering (Yaml config mode)
+./build/Debug/ex02  --yaml example.yaml
 
 # Run test
 ./build/Debug/ex00

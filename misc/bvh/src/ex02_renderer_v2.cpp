@@ -76,6 +76,68 @@ struct NormalIntegrator : Integrator {
 };
 
 
+struct MyRenderer : Renderer {
+  Yeml y;
+  vector<fvec3> result;
+
+  MyRenderer(const Yeml& in_y) : y{in_y} {
+    updateScene(y["scene"]);
+    updateCamera(y["camera"]);
+    updateIntegrator(y["integrator"]);
+  }
+
+  void update(Yeml& new_y) {
+    if (new_y["scene"]["params"]("file") != y["scene"]["params"]("file")) {
+      updateScene(new_y["scene"]);
+    }
+    updateCamera(new_y["camera"]);
+    updateIntegrator(new_y["integrator"]);
+    y.data = new_y.data;
+  }
+
+  void updateCamera(Yeml& y) {
+    Yeml& yp = y["params"];
+    auto c = new MyCamera;
+    camera.reset(c);
+    c->w = std::stoi(yp("w"));
+    c->h = std::stoi(yp("h"));
+    c->camera_loc = sto<fvec3>(yp("camera_loc"));
+    if (yp("lookat_scene_center") == "1") {
+      c->lookat_loc = dynamic_cast<MyScene*>(scene.get())->bvh.nodes[0].bbox.center();
+    } else {
+      c->lookat_loc = sto<fvec3>(yp("lookat_loc"));
+    }
+  }
+
+  void updateScene(Yeml& y) {
+    Yeml& yp = y["params"];
+    scene.reset(new MyScene{yp("file")});
+  }
+
+  void updateIntegrator(Yeml& y) {
+    Yeml& yp = y["params"];
+    MY_ASSERT(b_find({"NormalIntegrator", "HitIntegrator"}, y("type")));
+    if (y("type") == "NormalIntegrator") {
+      integrator.reset(new NormalIntegrator);
+    }
+    if (y("type") == "HitIntegrator") {
+      integrator.reset(new HitIntegrator);
+    }
+  }
+
+  void run() {
+    result = render();
+
+    // Convert to rgb bytes
+    vector<u8vec3> result_bytes = mapVector<u8vec3, fvec3>(result,
+        [](fvec3 v){ return u8vec3{glm::clamp(v * 256.0f, fvec3(0), fvec3(255))}; });
+
+    std::ofstream ostr(y["output"]["params"]("file"));
+    ostr << PPMWriter{camera->w, camera->h, result_bytes.data()};
+  }
+};
+
+
 void render(const string& infile, const string& outfile, int w, int h) {
   print("[render] Loading %s\n", infile);
   auto scene = make_shared<MyScene>(infile);
@@ -109,6 +171,16 @@ int main(int argc, const char** argv) {
   int h = cli.getArg<int>("-h").value_or(300);
   auto infile  = cli.getArg<string>("--infile");
   auto outfile = cli.getArg<string>("--outfile");
+  auto yaml = cli.getArg<string>("--yaml");
+
+  // Yaml config mode
+  if (yaml) {
+    MyRenderer renderer{Yeml::parseFile(*yaml)};
+    renderer.run();
+    return 0;
+  }
+
+  // Previous mode
   if (!(infile && outfile)) {
     print(cli.help());
     return 1;
