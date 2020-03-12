@@ -128,5 +128,49 @@ c: d
 - a
 )";
     CHECK_THROWS_WITH(Yeml::parse(ex), R"(SyntaxError: unexpected line "- a")");
+  }
 }
+
+TEST_CASE("Yeml format") {
+  using std::string, std::vector;
+  using namespace utils;
+
+  {
+    string example = R"(
+a0:
+  - k0: v0
+    k1: v1
+  -
+    k0: v0
+    k2:
+      k2-1: v0
+a1:
+  - v0
+)";
+
+    string expected = lstrip(R"(
+a0:
+  -
+    k0: v0
+    k1: v1
+  -
+    k0: v0
+    k2:
+      k2-1: v0
+a1:
+  - v0
+)");
+    Yeml y = Yeml::parse(example);
+    REQUIRE(format("%s", y) == expected);
+  }
+}
+
+TEST_CASE("Yeml string literal") {
+  using std::string, std::vector;
+  using namespace utils;
+
+  {
+    string ex = R"(x: "abcde")";
+    REQUIRE(format("%s", Yeml::parse(ex)) == "x: \"abcde\"\n");
+  }
 }

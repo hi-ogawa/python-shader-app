@@ -253,14 +253,17 @@ struct Yeml {
   Yeml(const Yeml& other) : data{other.data} { }
   explicit operator bool() { return !isNull(); }
 
-  bool isNull() { return std::holds_alternative<Null>(data); }
-  bool isDict() { return std::holds_alternative<Dict>(data); }
-  bool isList() { return std::holds_alternative<List>(data); }
-  bool isStr()  { return std::holds_alternative<string>(data); }
+  bool isNull() const { return std::holds_alternative<Null>(data); }
+  bool isDict() const { return std::holds_alternative<Dict>(data); }
+  bool isList() const { return std::holds_alternative<List>(data); }
+  bool isStr()  const { return std::holds_alternative<string>(data); }
 
   Dict&   asDict() { return std::get<Dict>(data);   }
   List&   asList() { return std::get<List>(data);   }
   string& s()      { return std::get<string>(data); }
+  const Dict&   asDict() const { return std::get<Dict>(data);   }
+  const List&   asList() const { return std::get<List>(data);   }
+  const string& s()      const { return std::get<string>(data); }
 
   // safe getter
   std::optional<shared_ptr<Yeml>> d(const string& key) {
@@ -522,6 +525,38 @@ struct Yeml {
     std::ifstream istr{filename};
     MY_ASSERT(istr.is_open());
     return parse(istr, debug);
+  }
+
+  void dump(std::ostream& ostr, int indent) const {
+    string indent_str(indent, ' ');
+    if (isStr()) {
+      ostr << format("%s%s\n", indent_str, s());
+    } else
+    if (isDict()) {
+      for (auto& [key, value] : asDict()) {
+        if (value->isStr()) {
+          ostr << format("%s%s: %s\n", indent_str, key, value->s());
+        } else {
+          ostr << format("%s%s:\n", indent_str, key);
+          (*value).dump(ostr, indent + 2);
+        }
+      }
+    } else
+    if (isList()) {
+      for (auto& value : asList()) {
+        if (value->isStr()) {
+          ostr << format("%s- %s\n", indent_str, value->s());
+        } else {
+          ostr << format("%s-\n", indent_str);
+          (*value).dump(ostr, indent + 2);
+        }
+      }
+    }
+  }
+
+  friend std::ostream& operator<<(std::ostream& ostr, const Yeml& self) {
+    self.dump(ostr, /*indent*/ 0);
+    return ostr;
   }
 };
 
