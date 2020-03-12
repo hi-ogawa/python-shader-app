@@ -1,6 +1,8 @@
 camera:
   type: MyCamera
   params:
+    # w: 100
+    # h: 100
     w: 500
     h: 400
     # camera_loc: 0.1 0.3 0.3 # for bunny
@@ -11,13 +13,21 @@ scene:
   type: MyScene
   params:
     # file: data/bunny/reconstruction/bun_zipper.ply
+    # file: data/bunny/reconstruction/bun_zipper_res4.ply
     file: data/dragon_recon/dragon_vrip_res2.ply
 
 integrator:
-  type: NormalIntegrator
+  type: AmbientOcclusionIntegrator
+  # type: NormalIntegrator
   # type: HitIntegrator
   params:
+    num_samples: 32
+    # num_samples: 256
+    background: 0.1 0.1 0.1
+    env_radiance: 1.0
 
 output:
   params:
     file: images/example.ppm
+    # file: images/bunny_ao_256.ppm
+    # file: images/dragon_ao_256.ppm

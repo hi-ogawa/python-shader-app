@@ -137,7 +137,7 @@ inline Triangle getTriangle(const std::vector<fvec3>& vertices, const std::vecto
 
 // [0, W] x [0, H]  -->  [-X/2, X/2] x [-tan(yfov/2), tan(yfov/2)]
 //   where X defined so that aspect ratio is preserved
-inline glm::fmat3 xformInvView(float yfov, float w, float h) {
+inline fmat3 xformInvView(float yfov, float w, float h) {
   float half_y = glm::tan(yfov / 2.0);
   float half_x = (w / h) * half_y;
   float a = -half_x;
@@ -149,7 +149,7 @@ inline glm::fmat3 xformInvView(float yfov, float w, float h) {
       a, b, 1,};
 }
 
-inline glm::fmat4 xformLookAt(fvec3 eye_loc, fvec3 lookat_loc, fvec3 up_vec) {
+inline fmat4 xformLookAt(fvec3 eye_loc, fvec3 lookat_loc, fvec3 up_vec) {
   // assert |up| = 1
   using glm::normalize, glm::cross;
   fvec3 z = normalize(eye_loc - lookat_loc);
@@ -163,6 +163,15 @@ inline glm::fmat4 xformLookAt(fvec3 eye_loc, fvec3 lookat_loc, fvec3 up_vec) {
       t[0], t[1], t[2], 1.0,};
 }
 
+inline fmat3 xformZframe(fvec3 z) {
+  // assert |z| = 1
+  using glm::normalize, glm::cross, glm::abs;
+  fvec3 x = cross(z, (abs(z.x) < 0.9) ? fvec3(1.0, 0.0, 0.0) : fvec3(0.0, 1.0, 0.0));
+  x = normalize(x);
+  fvec3 y = cross(z, x);
+  return fmat3(x, y, z);
+}
+
 
 } // namespace utils
 
@@ -170,6 +179,11 @@ inline glm::fmat4 xformLookAt(fvec3 eye_loc, fvec3 lookat_loc, fvec3 up_vec) {
 // Define "operator<<(..., fvec3)" within glm namespace so that "utils::toScalarOrString" in format.hpp can find it.
 // (cf. http://clang.llvm.org/compatibility.html#dep_lookup)
 namespace glm {
+
+inline std::ostream& operator<<(std::ostream& os, const glm::fvec2& v) {
+  os << utils::format("[%.3f, %.3f]", v[0], v[1]);
+  return os;
+}
 
 inline std::ostream& operator<<(std::ostream& os, const glm::fvec3& v) {
   os << utils::format("[%.3f, %.3f, %.3f]", v[0], v[1], v[2]);

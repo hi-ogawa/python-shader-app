@@ -59,21 +59,67 @@ struct MyScene : Scene {
 
 
 struct HitIntegrator : Integrator {
+  HitIntegrator(Yeml& y) {}
+
   virtual fvec3 Li(const Ray& ray, Scene& scene) {
     Intersection isect;
     bool hit = scene.intersect(ray, &isect);
     return fvec3{(float)hit};
   }
 };
-
+REGISTER_CLASS(HitIntegrator)
 
 struct NormalIntegrator : Integrator {
+  NormalIntegrator() {}
+  NormalIntegrator(Yeml& y) {}
+
   virtual fvec3 Li(const Ray& ray, Scene& scene) {
     Intersection isect;
     bool hit = scene.intersect(ray, &isect);
     return hit ? isect.n * 0.5f + 0.5f : fvec3{0.5};
   }
 };
+REGISTER_CLASS(NormalIntegrator)
+
+struct AmbientOcclusionIntegrator : Integrator {
+  int num_samples;
+  fvec3 background;
+  float max_distance;
+  float env_radiance;
+  Rng rng;
+  static constexpr float kRayTmin = 0.001;
+
+  AmbientOcclusionIntegrator(Yeml& y) {
+    num_samples = std::stoi(y.ds("num_samples").value_or("8"));
+    background = sto<fvec3>(y.ds("background").value_or("0 0 0"));
+    max_distance = std::stof(y.ds("max_distance").value_or("1e30"));
+    env_radiance = std::stof(y.ds("env_radiance").value_or("1"));
+  }
+
+  virtual fvec3 Li(const Ray& ray, Scene& scene) {
+    using glm::dot;
+
+    Intersection isect;
+    bool hit = scene.intersect(ray, &isect);
+    if (!hit)
+      return background;
+
+    fvec3 L{0, 0, 0};
+    Intersection isect_2nd;
+    Ray ray_2nd = { .tmax = max_distance };
+    for (auto i = 0; i < num_samples; i++) {
+      fvec3 wi;
+      float pdf;
+      sample_HemisphereCosine(rng.uniform2(), wi, pdf);
+      ray_2nd.d = xformZframe(isect.n) * wi;
+      ray_2nd.o = isect.p + kRayTmin * ray_2nd.d;
+      if (!scene.intersect(ray_2nd, &isect_2nd, /*any_hit*/ true))
+        L += (env_radiance / M_PI) * dot(wi, isect.n) / pdf;
+    }
+    return L / (float)(num_samples);
+  }
+};
+REGISTER_CLASS(AmbientOcclusionIntegrator)
 
 
 struct MyRenderer : Renderer {
@@ -116,13 +162,9 @@ struct MyRenderer : Renderer {
 
   void updateIntegrator(Yeml& y) {
     Yeml& yp = y["params"];
-    MY_ASSERT(b_find({"NormalIntegrator", "HitIntegrator"}, y("type")));
-    if (y("type") == "NormalIntegrator") {
-      integrator.reset(new NormalIntegrator);
-    }
-    if (y("type") == "HitIntegrator") {
-      integrator.reset(new HitIntegrator);
-    }
+    auto& reg = ClassRegistry::data;
+    auto ptr = ClassRegistry::data.at(y("type"))(yp);
+    integrator.reset(reinterpret_cast<Integrator*>(ptr));
   }
 
   void run() {

@@ -272,7 +272,7 @@ struct Yeml {
       return {};
     return asDict()[key];
   }
-  std::optional<shared_ptr<Yeml>> d(const size_t& i) {
+  std::optional<shared_ptr<Yeml>> d(size_t i) {
     if (!isList()) return {};
     if (!(i < asList().size())) return {};
     return asList()[i];
@@ -284,7 +284,7 @@ struct Yeml {
     if (!asDict()[key]->isStr()) return {};
     return asDict()[key]->s();
   }
-  std::optional<string> ds(const size_t& i) {
+  std::optional<string> ds(size_t i) {
     if (!isList()) return {};
     if (!(i < asList().size())) return {};
     if (!asList()[i]->isStr()) return {};
@@ -559,6 +559,149 @@ struct Yeml {
     return ostr;
   }
 };
+
+
+//
+// Global class registry
+//
+
+struct ClassRegistry {
+  using new_func_t = std::function<void*(Yeml&)>;
+  inline static map<string, new_func_t> data;
+};
+#define REGISTER_CLASS(CLASS)                                      \
+  struct CLASS ## __Registerer {                                   \
+    CLASS ## __Registerer () {                                     \
+      ClassRegistry::data[#CLASS] = [](Yeml& y){ return new CLASS{y}; };  \
+    }                                                              \
+  } CLASS ## __Registerer__instance;                               \
+
+
+//
+// PCG pseudo random generator (https://github.com/imneme/pcg-c-basic)
+//
+
+struct Rng {
+  uint64_t state, inc;
+  Rng() : Rng(0x1234, 0x5678) {}
+  Rng(uint64_t init_state, uint64_t init_seq) { seed(init_state, init_seq); }
+
+  void seed(uint64_t init_state, uint64_t init_seq) {
+    state = 0u;
+    inc = (init_seq << 1u) | 1u;
+    next();
+    state += init_state;
+    next();
+  }
+
+  uint32_t next() {
+    uint64_t oldstate = state;
+    state = oldstate * 6364136223846793005ULL + inc;
+    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+    uint32_t rot = oldstate >> 59u;
+    return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+  }
+
+  float uniform() {
+    uint32_t x = next();
+
+    // Use lower 23 bits to make [0, 1) by
+    //   2^{127 - 127} * 1.x[22..0] - 1.0
+    uint32_t y = (127u << 23u) | (0x7fffffu & x);
+    return *reinterpret_cast<float*>(&y) - 1.0;
+  }
+
+  fvec2 uniform2() {
+    return fvec2{uniform(), uniform()};
+  }
+};
+
+
+//
+// Various transformation
+//
+
+fvec3 map_Spherical_Cartesian(fvec3 rtp) {
+  using glm::cos, glm::sin;
+  return fvec3{
+    rtp[0] * sin(rtp[1]) * cos(rtp[2]),
+    rtp[0] * sin(rtp[1]) * sin(rtp[2]),
+    rtp[0] * cos(rtp[1]),
+  };
+}
+
+fvec2 map_Polar_Cartesian(fvec2 rp) {
+  using glm::cos, glm::sin;
+  return fvec2{
+    rp[0] * cos(rp[1]),
+    rp[0] * sin(rp[1]),
+  };
+}
+
+// (Almost everywhere) constant Jacobian 2d-isotopy between square and disk by Shirly and Chiu
+fvec2 map_Square_Disk_radius_phi(fvec2 u) {
+  using glm::sign, glm::abs;
+
+  // [0, 1]^2 -> [-1, 1]^2
+  u = 2.0f * u - 1.0f;
+
+  // Flip around to the 1/8 part of square { (x, y) | x in [0, 1], y in [0, x] }
+  fvec2 sign_u = sign(u);
+  fvec2 abs_u = abs(u);
+  bool swap_xy = abs_u[0] < abs_u[1];
+  fvec2 eighth_u = !swap_xy ? abs_u : fvec2{abs_u[1], abs_u[0]};
+
+  float radius = eighth_u[0];
+  float phi = M_PI / 4.0 * eighth_u[1] / eighth_u[0]; // in [0, pi/4]
+
+  // Flip back to the original part
+  phi = !swap_xy ? phi : (M_PI / 4.0 - phi);        // in [0, pi/2]
+  phi = 0 < sign_u[0] ? phi : (M_PI - phi);         // in [0, pi]
+  phi = 0 < sign_u[1] ? phi : (2.0 * M_PI - phi);   // in [0, 2pi]
+
+  return fvec2{radius, phi};
+}
+
+fvec2 map_Square_Disk(fvec2 u) {
+  return map_Polar_Cartesian(map_Square_Disk_radius_phi(u));
+}
+
+
+//
+// Sampling routines
+//
+
+void sample_HemisphereCosine(fvec2 u, /*out*/ fvec3& p, float& pdf) {
+  using glm::acos, glm::cos;
+
+  //
+  // [ "Straight-forward" version ]
+  //
+  // {
+  //   float phi   = 2.0f * M_PI * u[0];
+  //   float theta = 0.5f * acos(1.0f - 2.0f * u[1]);
+  //   p = map_Spherical_Cartesian(fvec3{1, theta, phi});
+  //   pdf = cos(theta) / M_PI;
+  //   return;
+  // }
+
+  //
+  // [ 2d Square isotopy version ]
+  //
+  // Map to uniform on disk (but its polar coord [0, 1] x [0, 2pi] not uniform)
+  fvec2 rp = map_Square_Disk_radius_phi(u);
+  float radius = rp[0]; // P(r) = 2r (F(r) = r^2)
+  float phi = rp[1];    // P(phi) : uniform
+
+  // Map to uniform on [0, 1]
+  float u1 = radius * radius;
+
+  // Map to P(theta) \propto cos(t)sin(t)
+  float theta = 0.5f * acos(1.0f - 2.0f * u1);
+
+  p = map_Spherical_Cartesian(fvec3{1, theta, phi});
+  pdf = cos(theta) / M_PI;
+}
 
 
 } // namespace utils

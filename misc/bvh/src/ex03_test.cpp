@@ -50,6 +50,24 @@ TEST_CASE("string") {
 }
 
 
+TEST_CASE("Rng") {
+  using namespace utils;
+
+  Rng rng{0x12341234, 0x56785678};
+
+  // Very rough uniformity test
+  int num_samples = 1000;
+  int num_bins = 100;
+  vector<int> histogram;  histogram.resize(num_bins);
+  for (auto i = 0; i < num_samples; i++) {
+    float f = rng.uniform();
+    int bin_idx = (int)floor(num_bins * f);
+    histogram[bin_idx] += 1;
+  }
+  CHECK(!b_find(histogram, 0));
+}
+
+
 TEST_CASE("Yeml") {
   using std::string, std::vector;
   using namespace utils;
