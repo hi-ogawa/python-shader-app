@@ -677,13 +677,13 @@ void sample_HemisphereCosine(fvec2 u, /*out*/ fvec3& p, float& pdf) {
   //
   // [ "Straight-forward" version ]
   //
-  // {
-  //   float phi   = 2.0f * M_PI * u[0];
-  //   float theta = 0.5f * acos(1.0f - 2.0f * u[1]);
-  //   p = map_Spherical_Cartesian(fvec3{1, theta, phi});
-  //   pdf = cos(theta) / M_PI;
-  //   return;
-  // }
+  {
+    float phi   = 2.0f * M_PI * u[0];
+    float theta = 0.5f * acos(1.0f - 2.0f * u[1]);
+    p = map_Spherical_Cartesian(fvec3{1, theta, phi});
+    pdf = cos(theta) / M_PI;
+    return;
+  }
 
   //
   // [ 2d Square isotopy version ]

@@ -74,7 +74,10 @@ struct bbox3 {
     float t_out = opMinReduce(max(t0, t1));
 
     hit_t = t_in;
-    return 0 < t_in && t_in < t_out && t_in < ray_tmax;
+    return (t_in < t_out) && 0 < t_out && ( // half-line crosses box (i.e. ray without tmax)
+      (t_in < 0 ) ||                        // ray_orig is interior
+      (t_in < ray_tmax)                     // ray_orig is outside but reaches box before tmax
+    );
   }
 };
 

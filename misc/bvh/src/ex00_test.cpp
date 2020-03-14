@@ -29,6 +29,21 @@ TEST_CASE("loadPly") {
   REQUIRE(indices.size() == 948);
 }
 
+TEST_CASE("bbox3") {
+  using std::string, std::vector;
+  using namespace utils;
+
+  SECTION("rayIntersect") {
+    // hit when ray origin is inside of bbox
+    bbox3 bb{fvec3{-1, -1, -1}, fvec3{1, 1, 1}};
+    fvec3 o{0, 0, 0};
+    fvec3 d = glm::normalize(fvec3{1, 1, 1});
+    float hit_t;
+    bool hit = bb.rayIntersect(o, d, /*tmax*/ 1e30, hit_t);
+    CHECK(hit);
+  }
+}
+
 
 TEST_CASE("Bvh-simple") {
   using std::string, std::vector;

@@ -34,6 +34,9 @@ struct Camera {
   virtual Ray generateRay(int x, int y) {
     return Ray{};
   }
+  virtual Ray generateRay_v2(float x, float y) {
+    return Ray{};
+  }
 };
 
 struct Integrator {

@@ -30,6 +30,11 @@ struct MyCamera : Camera {
     fvec3 ray_dir = ray_xform * fvec3{frag_coord, 1};
     return Ray{camera_loc, ray_dir, 1e30};
   }
+
+  virtual Ray generateRay_v2(float x, float y) {
+    fvec3 ray_dir = ray_xform * fvec3{x, y, 1};
+    return Ray{camera_loc, ray_dir, 1e30};
+  }
 };
 
 
@@ -81,6 +86,17 @@ struct NormalIntegrator : Integrator {
 };
 REGISTER_CLASS(NormalIntegrator)
 
+struct DebugIntegrator : Integrator {
+  DebugIntegrator(Yeml& y) {}
+
+  virtual fvec3 Li(const Ray& ray, Scene& scene) {
+    Intersection isect;
+    bool hit = scene.intersect(ray, &isect);
+    return hit ? isect.p * 0.5f + 0.5f : fvec3{0.5};
+  }
+};
+REGISTER_CLASS(DebugIntegrator)
+
 struct AmbientOcclusionIntegrator : Integrator {
   int num_samples;
   fvec3 background;
@@ -113,8 +129,10 @@ struct AmbientOcclusionIntegrator : Integrator {
       sample_HemisphereCosine(rng.uniform2(), wi, pdf);
       ray_2nd.d = xformZframe(isect.n) * wi;
       ray_2nd.o = isect.p + kRayTmin * ray_2nd.d;
-      if (!scene.intersect(ray_2nd, &isect_2nd, /*any_hit*/ true))
-        L += (env_radiance / M_PI) * dot(wi, isect.n) / pdf;
+      if (!scene.intersect(ray_2nd, &isect_2nd)) {
+        // NOTE: wi[2] == dot(isect.n, ray_2nd.d)
+        L += (1.0f / M_PI) * env_radiance * wi[2] / pdf;
+      }
     }
     return L / (float)(num_samples);
   }
@@ -125,14 +143,23 @@ REGISTER_CLASS(AmbientOcclusionIntegrator)
 struct MyRenderer : Renderer {
   Yeml y;
   vector<fvec3> result;
+  int num_samples = 1;
+  Rng rng{0x12341234, 0x56785678};
 
   MyRenderer(const Yeml& in_y) : y{in_y} {
+    set(y);
     updateScene(y["scene"]);
     updateCamera(y["camera"]);
     updateIntegrator(y["integrator"]);
   }
 
+  void set(Yeml& in_y) {
+    Yeml& in_yp = in_y["renderer"];
+    num_samples = std::stoi(in_yp["params"]("num_samples"));
+  }
+
   void update(Yeml& new_y) {
+    set(new_y);
     if (new_y["scene"]["params"]("file") != y["scene"]["params"]("file")) {
       updateScene(new_y["scene"]);
     }
@@ -167,8 +194,27 @@ struct MyRenderer : Renderer {
     integrator.reset(reinterpret_cast<Integrator*>(ptr));
   }
 
+  void renderMultiSample() {
+    camera->onInitialize();
+    int h = camera->h; int w = camera->w;
+    result.resize(h * w);
+    fvec3* p_result = result.data();
+    for (auto y = 0; y < h; y++) {
+      for (auto x = 0; x < w; x++) {
+        *p_result *= 0;
+        for (auto i = 0; i < num_samples; i++) {
+          fvec2 frag_coord = fvec2{x, h - y - 1} + rng.uniform();
+          Ray ray = camera->generateRay_v2(frag_coord[0], frag_coord[1]);
+          *p_result += integrator->Li(ray, *scene);
+        }
+        *p_result /= num_samples;
+        p_result++;
+      }
+    }
+  }
+
   void run() {
-    result = render();
+    renderMultiSample();
 
     // Convert to rgb bytes
     vector<u8vec3> result_bytes = mapVector<u8vec3, fvec3>(result,
