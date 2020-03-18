@@ -39,3 +39,11 @@ float hash31(vec3 x) {
 vec2 hash12(float x) {
   return vec2(hash11(x), hash21(vec2(x, 1.0)));
 }
+
+vec3 hash13(float x) {
+  return vec3(hash11(x), hash21(vec2(x, 1.0)), hash21(vec2(x, 2.0)));
+}
+
+vec3 hash23(vec2 x) {
+  return vec3(hash21(x), hash31(vec3(x, 1.0)), hash31(vec3(x, 2.0)));
+}

@@ -1,13 +1,5 @@
 //
-// Blue Noise Generator
-//   python -m src.app --width 256 --height 256 shaders/ex41_blue_noise_generator.glsl --offscreen shaders/images/ex41_blue_noise_generator.png
-//
-// - References
-//   - Blue Noise Generator of by paniq https://www.shadertoy.com/view/XtdyW2
-//   - G EORGIEV I., F AJARDO M.: Blue-noise dithered sampling.
-//
-// - TODO
-//   - Proper throttling mechanism so not to crush when offscreen (maybe by config option?)
+// Blue Noise Generator Multi-component
 //
 
 /*
@@ -49,9 +41,6 @@ offscreen_option:
 // - global seed
 const int kSeed = 0;
 
-// - [0, 1]-uniform buffer initialization strategy
-const int kInitType = 0; // 0: y-gradient, 1: frag coord hash
-
 // - Neighbors to include for objective function evaluation
 // const int kRadius = 4;
 const int kRadius = 8;
@@ -60,17 +49,17 @@ const int kRadius = 8;
 // - Fraction of permutation pairs to kull.
 //   (the lower this value is, the faster the evolution. but might not converge.)
 // const float kKullFraction = 0.5;
-// const float kKullFraction = 0.8;
-const float kKullFraction = 0.9;
+const float kKullFraction = 0.8;
+// const float kKullFraction = 0.9;
 
 // - Parameter of `objective_g`
 const float kSigmaS = 4.0;
-const float kSigmaI = 1.0;
+const float kSigmaI = 3.0;
 
 // - Ad-hoc parameter (it depends on all other constants)
 // const float kAdhocTemperature = 0.0001;
-const float kAdhocTemperature = 0.001;
-// const float kAdhocTemperature = 0.01;
+// const float kAdhocTemperature = 0.001;
+const float kAdhocTemperature = 0.01;
 // const float kAdhocTemperature = 0.05;
 
 // - See "samplers: - ... size: [256, 256]" in above config
@@ -120,8 +109,8 @@ void mainImage1(out vec4 frag_color, in vec2 frag_coord, sampler2D fb){
     }
   }
 
-  float v = texelFetch(fb, texcoord, 0)[0];
-  frag_color = vec4(vec3(v), 1.0);
+  vec3 v = texelFetch(fb, texcoord, 0).rgb;
+  frag_color = vec4(v, 1.0);
 }
 
 
@@ -129,17 +118,17 @@ void mainImage1(out vec4 frag_color, in vec2 frag_coord, sampler2D fb){
 // Optimization code
 //
 
-float objective_g(ivec2 dp, float df) {
+float objective_g(ivec2 dp, vec4 df) {
   float c_dp = length(dp) * length(dp);
-  float c_df = length(df) * length(df);
+  float c_df = length(df.rgb) * length(df.rgb);
   return exp(- c_dp / kSigmaS - c_df / kSigmaI);
 }
 
 void estimateObjective(ivec2 p0, ivec2 p1, sampler2D fb, out float obj_curr, out float obj_perm) {
   obj_curr = 0.0;
   obj_perm = 0.0;
-  float f_p0 = texelFetch(fb, p0, 0)[0];
-  float f_p1 = texelFetch(fb, p1, 0)[0];
+  vec4 f_p0 = texelFetch(fb, p0, 0);
+  vec4 f_p1 = texelFetch(fb, p1, 0);
 
   for (int dx = -kRadius; dx <= kRadius; dx++) {
     for (int dy = -kRadius; dy <= kRadius; dy++) {
@@ -151,8 +140,8 @@ void estimateObjective(ivec2 p0, ivec2 p1, sampler2D fb, out float obj_curr, out
 
       ivec2 p0_dp = wrapRepeat(p0 + dp);
       ivec2 p1_dp = wrapRepeat(p1 + dp);
-      float f_p0_dp = texelFetch(fb, p0_dp, 0)[0];
-      float f_p1_dp = texelFetch(fb, p1_dp, 0)[0];
+      vec4 f_p0_dp = texelFetch(fb, p0_dp, 0);
+      vec4 f_p1_dp = texelFetch(fb, p1_dp, 0);
 
       obj_curr += objective_g(dp, f_p0 - f_p0_dp);
       obj_curr += objective_g(dp, f_p1 - f_p1_dp);
@@ -165,24 +154,17 @@ void estimateObjective(ivec2 p0, ivec2 p1, sampler2D fb, out float obj_curr, out
 
 
 void mainImage2(out vec4 frag_color, vec2 frag_coord, sampler2D fb) {
+  // By default, keep current value
+  frag_color = texelFetch(fb, ivec2(floor(frag_coord)), 0);
+
   //
   // Initialize buffer by [0, 1]-uniform data
   // (it should be uniform for {0, 1, .., 255} / 255)
   //
   if (iFrame <= 1) {
-    // Gradient along y
-    // (it has to be iResolution[1] % 256 == 0, to achieve complete uniformity from this.)
-    if (kInitType == 0) {
-      float v = floor(frag_coord[1]) / float(kFbSize - 1);
-      frag_color[0] = v;
-      return;
-    }
-
-    // Hash by coordinate (it won't be "complete" uniform value, but okay)
-    if (kInitType == 1) {
-      frag_color[0] = hash21(frag_coord + kSeed);
-      return;
-    }
+    vec3 v = hash23(frag_coord);
+    frag_color = vec4(v, 1.0);
+    return;
   }
 
   //
@@ -218,7 +200,6 @@ void mainImage2(out vec4 frag_color, vec2 frag_coord, sampler2D fb) {
   // For `estimateObjective` below to be valid, we shouldn't swap everything at single step.
   // So, we first kulls swap-candidate pairs randomly.
   if (pair_hash0 <= kKullFraction) {  // Bernoulli trial
-    frag_color[0] = texelFetch(fb, p0, 0)[0];
     return;
   }
 
@@ -230,8 +211,9 @@ void mainImage2(out vec4 frag_color, vec2 frag_coord, sampler2D fb) {
   float obj_diff = obj_perm - obj_curr;
   float temperature = kAdhocTemperature;
   float probability = exp((obj_curr - obj_perm) / temperature);
-  bool swap = pair_hash1 < probability;  // Bernoulli trial
 
-  ivec2 p = swap ? p1 : p0;
-  frag_color[0] = texelFetch(fb, p, 0)[0];
+  // Swap by probability
+  if (pair_hash1 < probability) { // Bernoulli trial
+    frag_color = texelFetch(fb, p1, 0);
+  }
 }
