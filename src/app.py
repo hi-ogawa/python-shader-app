@@ -202,7 +202,9 @@ class MultiPassRenderer():
       if sampler['type'] == 'framebuffer':
         w, h = (W, H) if sampler['size'] == '$default' else sampler['size']
         fbo_pair = self.create_fbo_pair(
-            w, h, sampler['mipmap'], sampler.get('internal_format', 'GL_RGBA8'))
+            w, h, sampler['mipmap'],
+            sampler.get('internal_format', 'GL_RGBA8'),
+            sampler.get('double_buffering', True))
         for fbo in fbo_pair:
           self.configure_gl_texture(fbo.texture(), sampler)
         self.framebuffers[name] = fbo_pair
@@ -228,11 +230,17 @@ class MultiPassRenderer():
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
     return MyImage(qimage=qimage, handle=handle)
 
-  def create_fbo_pair(self, W, H, mipmap, internal_format):
+  def create_fbo_pair(self, W, H, mipmap, internal_format, double_buffering):
     fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
     fbo_format.setMipmap(mipmap)
     fbo_format.setInternalTextureFormat(getattr(gl, internal_format))
-    fbo_pair = [QtGui.QOpenGLFramebufferObject(W, H, fbo_format) for _ in range(2)]
+    if double_buffering:
+      fbo_pair = [QtGui.QOpenGLFramebufferObject(W, H, fbo_format) for _ in range(2)]
+    else:
+      # NOTE:
+      # Support no automatic double buffering for manual render pass acceleration.
+      # To reuse our code for double buffering, we use list with identical two elememnts.
+      fbo_pair = [QtGui.QOpenGLFramebufferObject(W, H, fbo_format)] * 2
     return fbo_pair
 
   def configure_gl_texture(self, handle, sampler_config):
