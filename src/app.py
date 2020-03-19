@@ -287,36 +287,55 @@ class MultiPassRenderer():
       complete_src = FRAGMENT_SHADER_TEMPLATE.format(**complete_src_attrs)
       renderer.load_fragment_shader(complete_src)
 
+  def draw_program_substep(self, program, default_framebuffer, W, H, frame, time, mouse_down,
+       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+    texture_ids = []
+    for sampler_name in program['samplers']:
+      sampler = pydash.find(self.config['samplers'], {'name': sampler_name})
+      if sampler['type'] == 'file':
+        handle = self.images[sampler_name].handle
+
+      if sampler['type'] == 'framebuffer':
+        fbo_pair = self.framebuffers[sampler_name]
+        handle = fbo_pair[0].texture()
+        gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+        gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+        gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+
+      texture_ids.append(handle)
+
+    if program['output'] == '$default':
+      gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
+    else:
+      fbo_pair = self.framebuffers[program['output']]
+      fbo_pair[1].bind()
+
+    renderer = self.renderers[program['name']]
+    renderer.draw(
+      texture_ids, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos)
+
   # default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
   def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
     # Draw for each program
     for program in self.config['programs']:
-      texture_ids = []
-      for sampler_name in program['samplers']:
-        sampler = pydash.find(self.config['samplers'], {'name': sampler_name})
-        if sampler['type'] == 'file':
-          handle = self.images[sampler_name].handle
+      substep = program.get('substep')
+      # Usual single draw
+      if not substep:
+        self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
+            mouse_press_pos, mouse_release_pos, mouse_move_pos)
+        continue
 
-        if sampler['type'] == 'framebuffer':
-          fbo_pair = self.framebuffers[sampler_name]
-          handle = fbo_pair[0].texture()
-          gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
-          gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
-          gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-
-        texture_ids.append(handle)
-
-      if program['output'] == '$default':
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
-      else:
-        fbo_pair = self.framebuffers[program['output']]
-        fbo_pair[1].bind()
-
-      renderer = self.renderers[program['name']]
-      renderer.draw(
-        texture_ids, W, H, frame, time, mouse_down,
-        mouse_press_pos, mouse_release_pos, mouse_move_pos)
+      # Substep loop draw
+      for i in range(substep['num_iter']):
+        if i > 0:
+          # swap double buffers within substep
+          for sampler_name in substep['samplers']:
+            pair = self.framebuffers[sampler_name]
+            pair[0], pair[1] = pair[1], pair[0]
+        self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
+            mouse_press_pos, mouse_release_pos, mouse_move_pos)
 
     # Swap double buffers
     for pair in self.framebuffers.values():
