@@ -1,5 +1,6 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools
 import OpenGL.GL as gl
+import pydash
 import os, array, ctypes, time, collections
 from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
@@ -200,12 +201,15 @@ class MultiPassRenderer():
 
       if sampler['type'] == 'framebuffer':
         w, h = (W, H) if sampler['size'] == '$default' else sampler['size']
-        fbo_pair = self.create_fbo_pair(w, h, sampler['mipmap'])
+        fbo_pair = self.create_fbo_pair(
+            w, h, sampler['mipmap'], sampler.get('internal_format', 'GL_RGBA8'))
         for fbo in fbo_pair:
           self.configure_gl_texture(fbo.texture(), sampler)
         self.framebuffers[name] = fbo_pair
 
   def create_image(self, filename):
+    # TODO: Support .hdr texture (cf. stb_image)
+
     # Load image file via QImage
     qimage = QtGui.QImage(filename)
     qimage = qimage.mirrored(False, True) # flip y direction
@@ -219,19 +223,16 @@ class MultiPassRenderer():
     gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
     W, H = qimage.width(), qimage.height()
     gl.glTexImage2D(
-        gl.GL_TEXTURE_2D, 0, gl.GL_RGBA, W, H, 0,
+        gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, W, H, 0,
         gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
     return MyImage(qimage=qimage, handle=handle)
 
-  def create_fbo_pair(self, W, H, mipmap):
-    # framebuffer's storage is GL_RGBA8 by default
+  def create_fbo_pair(self, W, H, mipmap, internal_format):
     fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
     fbo_format.setMipmap(mipmap)
-    fbo_pair = [
-      QtGui.QOpenGLFramebufferObject(W, H, fbo_format),
-      QtGui.QOpenGLFramebufferObject(W, H, fbo_format)
-    ]
+    fbo_format.setInternalTextureFormat(getattr(gl, internal_format))
+    fbo_pair = [QtGui.QOpenGLFramebufferObject(W, H, fbo_format) for _ in range(2)]
     return fbo_pair
 
   def configure_gl_texture(self, handle, sampler_config):
@@ -243,11 +244,12 @@ class MultiPassRenderer():
         gl.GL_REPEAT if sampler_config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
     if sampler_config['filter'] == 'linear':
       min_filter = gl.GL_LINEAR_MIPMAP_NEAREST if sampler_config['mipmap'] else gl.GL_LINEAR
+      mag_filter = gl.GL_LINEAR
     else:
       min_filter = gl.GL_NEAREST_MIPMAP_NEAREST if sampler_config['mipmap'] else gl.GL_NEAREST
+      mag_filter = gl.GL_NEAREST
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, min_filter)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER,
-        gl.GL_LINEAR               if sampler_config['filter'] == 'linear' else gl.GL_NEAREST)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, mag_filter)
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
     if sampler_config['mipmap'] and sampler_config['type'] == 'file':
@@ -284,7 +286,7 @@ class MultiPassRenderer():
     for program in self.config['programs']:
       texture_ids = []
       for sampler_name in program['samplers']:
-        sampler = next(_ for _ in self.config['samplers'] if _['name'] == sampler_name)
+        sampler = pydash.find(self.config['samplers'], {'name': sampler_name})
         if sampler['type'] == 'file':
           handle = self.images[sampler_name].handle
 

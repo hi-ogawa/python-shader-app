@@ -2,3 +2,4 @@ PyOpenGL
 PySide2
 pyyaml
 requests
+pydash
