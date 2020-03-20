@@ -16,17 +16,21 @@ samplers:
 
 programs:
   - name: mainImage1
-    samplers:
-      - buf
+    samplers: [buf]
     output: buf
-    substep:
-      num_iter: 16
-      samplers: [buf]
+    substep: true
 
   - name: mainImage
+    samplers: [buf]
     output: $default
-    samplers:
-      - buf
+
+substep:
+  num_iter: 32
+  schedule:
+    - type: program
+      name: mainImage1
+    - type: sampler
+      name: buf
 
 offscreen_option:
   fps: 60

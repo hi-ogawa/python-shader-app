@@ -44,17 +44,21 @@ samplers:
 
 programs:
   - name: mainImage1
-    samplers:
-      - buf
+    samplers: [buf]
     output: buf
-    substep:
-      num_iter: 2
-      samplers: [buf]
+    substep: true
 
   - name: mainImage
+    samplers: [buf]
     output: $default
-    samplers:
-      - buf
+
+substep:
+  num_iter: 2
+  schedule:
+    - type: program
+      name: mainImage1
+    - type: sampler
+      name: buf
 
 offscreen_option:
   fps: 60
@@ -166,6 +170,10 @@ float getMouseSource(vec2 frag_coord, vec4 _iMouse) {
   bool activated, down;
   vec2 last_click_pos, last_down_pos;
   getMouseState(_iMouse, /*out*/ activated, down, last_click_pos, last_down_pos);
+  if (!activated && iFrame % 60 == 0) {
+    float coin_toss = sign(hash11(iFrame) - 0.5);
+    return coin_toss * getSource(frag_coord, last_down_pos);
+  }
   if (down && iFrame % 8 == 0) {
     float coin_toss = sign(hash11(iFrame) - 0.5);
     return coin_toss * getSource(frag_coord, last_down_pos);

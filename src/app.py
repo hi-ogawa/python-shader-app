@@ -317,31 +317,60 @@ class MultiPassRenderer():
       mouse_press_pos, mouse_release_pos, mouse_move_pos)
 
   # default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
+  # TODO: fold all arguments into dataclass
   def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
-    # Draw for each program
+    # Global substep mode
+    global_substep = self.config.get('substep')
+    if global_substep:
+      self.draw_global_substep_mode(
+          global_substep, default_framebuffer, W, H, frame, time, mouse_down,
+          mouse_press_pos, mouse_release_pos, mouse_move_pos)
+      return
+
+    # Default mode
+    self.draw_default_mode(
+        default_framebuffer, W, H, frame, time, mouse_down,
+        mouse_press_pos, mouse_release_pos, mouse_move_pos)
+
+  def draw_default_mode(self, default_framebuffer, W, H, frame, time, mouse_down,
+       mouse_press_pos, mouse_release_pos, mouse_move_pos):
     for program in self.config['programs']:
       substep = program.get('substep')
-      # Usual single draw
-      if not substep:
-        self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
-            mouse_press_pos, mouse_release_pos, mouse_move_pos)
-        continue
-
-      # Substep loop draw
-      # TODO: provide someway for program to know substep (e.g. "iSubstepFrame")
-      for i in range(substep['num_iter']):
-        if i > 0:
-          # swap double buffers within substep
-          for sampler_name in substep['samplers']:
-            pair = self.framebuffers[sampler_name]
-            pair[0], pair[1] = pair[1], pair[0]
-        self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
-            mouse_press_pos, mouse_release_pos, mouse_move_pos)
+      self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
+          mouse_press_pos, mouse_release_pos, mouse_move_pos)
 
     # Swap double buffers
     for pair in self.framebuffers.values():
       pair[0], pair[1] = pair[1], pair[0]
+
+  def draw_global_substep_mode(self, global_substep,
+      default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos):
+    global_substep = self.config.get('substep')
+    num_iter = global_substep['num_iter']
+    schedule = global_substep['schedule']
+
+    # Iterate substep scedule
+    # TODO: provide someway for program to know substep (e.g. "iSubstepFrame")
+    for i in range(global_substep['num_iter']):
+      for task in schedule:
+        if task['type'] == 'program':
+          program = pydash.find(self.config['programs'], {'name': task['name']})
+          self.draw_program_substep(
+              program, default_framebuffer, W, H, frame, time, mouse_down,
+              mouse_press_pos, mouse_release_pos, mouse_move_pos)
+
+        if task['type'] == 'sampler':
+          pair = self.framebuffers[task['name']]
+          pair[0], pair[1] = pair[1], pair[0]
+
+    # Iterate "non-substep" program (it should be only window render pass)
+    for program in self.config['programs']:
+      if not program.get('substep'):
+        self.draw_program_substep(
+            program, default_framebuffer, W, H, frame, time, mouse_down,
+            mouse_press_pos, mouse_release_pos, mouse_move_pos)
 
 
 class MyWidget(QtWidgets.QOpenGLWidget):

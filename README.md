@@ -20,5 +20,5 @@ python -m src.batch --out-dir shaders/images --format png shaders/ex*.glsl
 python -m unittest -v src/*_test.py
 
 # Download shader from shadertoy
-python -m shaders.shadertoy.download --out-dir shaders/shadertoy https://www.shadertoy.com/view/Xds3zNXdXGRB
+python -m shaders.shadertoy.download --out-dir shaders/shadertoy https://www.shadertoy.com/view/Xds3zN
 ```
