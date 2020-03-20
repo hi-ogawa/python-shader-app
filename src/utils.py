@@ -43,6 +43,18 @@ def setup_qt_message_handler(truncate_multiline=True):
   QtCore.qInstallMessageHandler(message_handler)
 
 
+def handle_OpenGL_debug_message(m):
+  BLACKLIST = [
+    # NOTE: Intel's driver emits this when read/write same framebuffer (e.g. in multipass shader)
+    lambda s: s.strip() == "Disabling CCS because a renderbuffer is also bound for sampling.",
+  ]
+  message = m.message()
+  for match_func in BLACKLIST:
+    if match_func(message):
+      return
+  print(f"[QOpenGLDebugLogger] {message}")
+
+
 # file : str -> (result : str, include_files : [str])
 def preprocess_include(file, add_line_directive=True):
   import os, re

@@ -4,7 +4,8 @@ import pydash
 import os, array, ctypes, time, collections
 from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
-    preprocess_include, PreprocessIncludeWatcher, parse_shader_config
+    preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
+    handle_OpenGL_debug_message
 
 
 VERTEX_SHADER_SOURCE = """
@@ -328,6 +329,7 @@ class MultiPassRenderer():
         continue
 
       # Substep loop draw
+      # TODO: provide someway for program to know substep (e.g. "iSubstepFrame")
       for i in range(substep['num_iter']):
         if i > 0:
           # swap double buffers within substep
@@ -429,8 +431,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   def enable_debug(self):
     logger = QtGui.QOpenGLDebugLogger(self)
     assert logger.initialize()
-    logger.messageLogged.connect(
-      lambda m: print("[QOpenGLDebugLogger] ", m.message()))
+    logger.messageLogged.connect(handle_OpenGL_debug_message)
     logger.startLogging()
 
   def cleanup(self): # not used

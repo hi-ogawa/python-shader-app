@@ -49,6 +49,13 @@ def emit_shader_pass(i, shader_pass): # (int, dict) -> str
   # - 'channel' indicates associated iChennel<N> in the render pass.
   # - For now this only handles Buffer A/B/C/D (so, e.g. static texture is not handled yet.)
   #
+  # TODO:
+  # - for multipass shader to be directly executable in our shader app, we need to
+  #   - emit "Common" at the top of the source
+  #   - emit "mainImage" as e.g. "mainImage1(..., sampler2D iChannel0, ...)"
+  #   - emit yaml config with framebuffer samplers
+  #     - internal_format GL_RGBA32F and double_buffering false
+  #
   for inp in shader_pass['inputs']:
     if not inp['channel'] in [0, 1, 2, 3]:
       print(f"[download:warning] shader pass ({name}) : input channel {inp['channel']} found")
