@@ -7,6 +7,8 @@ from .utils import \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
 from .plugins import SsboPlugin
+from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
+
 
 VERTEX_SHADER_SOURCE = """
 #version 430 core
@@ -190,19 +192,20 @@ class MultiPassRenderer():
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")
       self.config = DEFAULT_CONFIG
     print(f"[MultiPassRenderer] Current configuration\n{self.config}")
-    self.configure_plugins(self.config.get('plugins', []))
+    self.configure_plugins(self.config.get('plugins', []), W, H)
     self.configure_samplers(W, H)
     self.configure_programs(src)
 
   # TODO: remove unnecessary re-configure when reloading .glsl
-  def configure_plugins(self, plugins_config):
+  # TODO: passing "W, H" feels so ad-hoc
+  def configure_plugins(self, plugins_config, W, H):
     self.cleanup_plugins()
     for plugin_config in plugins_config:
       name = plugin_config['type']
       params = plugin_config['params']
       klass_name = name.capitalize() + 'Plugin'
       plugin = globals()[klass_name]()
-      plugin.configure(params)
+      plugin.configure(params, W, H)
       self.plugins += [plugin]
 
   def configure_samplers(self, W, H):
@@ -290,21 +293,41 @@ class MultiPassRenderer():
     self.renderers = {}
 
     # validate and setup programs
+    # TODO: Refactor API for Renderer and ComputeProgram
     for program in self.config['programs']:
-      assert program['output'] == '$default' or \
-           program['output'] in self.framebuffers.keys()
       for sampler_name in program['samplers']:
-        assert sampler_name in self.framebuffers.keys() or sampler_name in self.images.keys()
-      self.renderers[program['name']] = renderer = Renderer()
-      renderer.init_resource()
+        assert sampler_name in list(self.framebuffers.keys()) + list(self.images.keys())
+
       N = len(program['samplers'])
-      complete_src_attrs = dict(
-        src=src, name=program['name'],
-        sampler_uniform_decls=''.join(f"uniform sampler2D iSampler{i};\n" for i in range(N)),
-        sampler_arg_decls=    ''.join(f", sampler2D" for i in range(N)),
-        sampler_args=         ''.join(f", iSampler{i}" for i in range(N)))
-      complete_src = FRAGMENT_SHADER_TEMPLATE.format(**complete_src_attrs)
-      renderer.load_fragment_shader(complete_src)
+      sampler_uniform_decls = ''.join(f"uniform sampler2D iSampler{i};\n" for i in range(N))
+      sampler_arg_decls     = ''.join(f", sampler2D" for i in range(N))
+      sampler_args          = ''.join(f", iSampler{i}" for i in range(N))
+
+      if program.get('type') == 'compute':
+        # Setup ComputeProgram
+        self.renderers[program['name']] = renderer = ComputeProgram(program)
+        renderer.init_resource()
+        complete_src_attrs = dict(
+          src=src, name=program['name'],
+          sampler_uniform_decls = sampler_uniform_decls,
+          sampler_arg_decls     = sampler_arg_decls[2:],
+          sampler_args          = sampler_args[2:],
+          local_size            = program['local_size'])
+        complete_src = COMPUTE_SHADER_TEMPLATE.format(**complete_src_attrs)
+        renderer.load_compute_shader(complete_src)
+
+      else:
+        # Setup Renderer
+        assert program['output'] in (['$default'] + list(self.framebuffers.keys()))
+        self.renderers[program['name']] = renderer = Renderer()
+        renderer.init_resource()
+        complete_src_attrs = dict(
+          src=src, name=program['name'],
+          sampler_uniform_decls = sampler_uniform_decls,
+          sampler_arg_decls     = sampler_arg_decls,
+          sampler_args          = sampler_args)
+        complete_src = FRAGMENT_SHADER_TEMPLATE.format(**complete_src_attrs)
+        renderer.load_fragment_shader(complete_src)
 
   def on_begin_draw(self):
     for plugin in self.plugins:
@@ -331,11 +354,12 @@ class MultiPassRenderer():
 
       texture_ids.append(handle)
 
-    if program['output'] == '$default':
-      gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
-    else:
-      fbo_pair = self.framebuffers[program['output']]
-      fbo_pair[1].bind()
+    if not program.get('type') == 'compute':
+      if program['output'] == '$default':
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
+      else:
+        fbo_pair = self.framebuffers[program['output']]
+        fbo_pair[1].bind()
 
     renderer = self.renderers[program['name']]
     renderer.draw(
@@ -368,7 +392,6 @@ class MultiPassRenderer():
   def draw_default_mode(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
     for program in self.config['programs']:
-      substep = program.get('substep')
       self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
           mouse_press_pos, mouse_release_pos, mouse_move_pos)
 

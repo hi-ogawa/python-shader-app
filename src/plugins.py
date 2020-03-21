@@ -1,9 +1,9 @@
 import OpenGL.GL as gl
-from array import array  # used from "eval(data)" in SsboPlugin
+import ctypes
 
 
 class Plugin():
-  def configure(self): pass
+  def configure(self, config, W, H): pass
   def cleanup(self): pass
   def on_begin_draw(self): pass
   def on_draw(self): pass
@@ -11,24 +11,31 @@ class Plugin():
 
 
 class SsboPlugin(Plugin):
-  def configure(self, config):
+  def configure(self, config, W, H):
+    self.W, self.H = W, H  # in order to support "eval" for size
     self.config = config
     self.binding = self.config['binding']
     self.ssbo = gl.glGenBuffers(1)
-    data = self.get_data()
-    if data:
-      gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, self.ssbo)
-      gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(data), self.get_data(), gl.GL_DYNAMIC_DRAW);
-      gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0);
+    data, size = self.get_data()
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, self.ssbo)
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, size, data, gl.GL_DYNAMIC_DRAW);
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0);
 
-  def get_data(self): # -> bytes
-    _type = self.config['type']
-    data  = self.config['data']
-    if _type == 'inline':
-      return eval(data).tobytes()
-    if _type == 'file':
-      return open(data, 'rb').read()
-    return None
+  def get_data(self): # -> (data, int)
+    typ = self.config['type']
+    if typ == 'size':
+      size = self.config['size']
+      # Handle "eval" mode
+      if type(size) == str:
+        size = eval(size, dict(W=self.W, H=self.H))
+      return ctypes.c_void_p(0), size
+
+    if typ == 'file':
+      file = self.config['data']
+      bs = open(file, 'rb').read()
+      return bs, len(bs)
+
+    raise RuntimeError(f"[SsboPlugin] Invalid type : {typ}")
 
   def cleanup(self):
     gl.glDeleteBuffers(1, self.ssbo)
