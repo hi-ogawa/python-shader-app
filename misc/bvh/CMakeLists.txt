@@ -43,3 +43,6 @@ target_link_libraries(ex02 PRIVATE glm)
 
 add_executable(ex03 src/ex03_test.cpp)
 target_link_libraries(ex03 PRIVATE catch glm)
+
+add_executable(ex04 src/ex04_exporter.cpp)
+target_link_libraries(ex04 PRIVATE glm)

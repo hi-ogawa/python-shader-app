@@ -8,6 +8,7 @@
 #include <map>
 #include <variant>
 #include <fstream>
+#include <memory>
 
 #include "common.hpp"
 #include "format.hpp"
