@@ -6,10 +6,10 @@ from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
-
+from .plugins import SsboPlugin
 
 VERTEX_SHADER_SOURCE = """
-#version 330
+#version 430 core
 layout (location = 0) in vec2 vert_position_;
 void main() {
   gl_Position = vec4(vert_position_, 0.0, 1.0);
@@ -133,7 +133,7 @@ DEFAULT_CONFIG = {
 }
 
 FRAGMENT_SHADER_TEMPLATE = """
-#version 330
+#version 430 core
 uniform float iTime;
 uniform int iFrame;
 uniform vec3 iResolution;
@@ -158,6 +158,7 @@ class MultiPassRenderer():
     self.renderers = {}    # map<str, Renderer>
     self.framebuffers = {} # map<str, (QOpenGLFramebufferObject, QOpenGLFramebufferObject)>
     self.images = {}       # map<str, MyImage>
+    self.plugins = []      # list<Plugin>
 
   def cleanup(self):
     self.cleanup_renderers()
@@ -178,14 +179,31 @@ class MultiPassRenderer():
   def cleanup_framebuffers(self):
     self.framebuffers = {} # Default destructor frees gl resource
 
+  def cleanup_plugins(self):
+    for plugin in self.plugins:
+      plugin.cleanup()
+    self.plugins = []
+
   def configure(self, src, W, H):
     self.config = parse_shader_config(src)
     if self.config is None:
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")
       self.config = DEFAULT_CONFIG
     print(f"[MultiPassRenderer] Current configuration\n{self.config}")
+    self.configure_plugins(self.config.get('plugins', []))
     self.configure_samplers(W, H)
     self.configure_programs(src)
+
+  # TODO: remove unnecessary re-configure when reloading .glsl
+  def configure_plugins(self, plugins_config):
+    self.cleanup_plugins()
+    for plugin_config in plugins_config:
+      name = plugin_config['type']
+      params = plugin_config['params']
+      klass_name = name.capitalize() + 'Plugin'
+      plugin = globals()[klass_name]()
+      plugin.configure(params)
+      self.plugins += [plugin]
 
   def configure_samplers(self, W, H):
     self.cleanup_framebuffers()
@@ -288,6 +306,14 @@ class MultiPassRenderer():
       complete_src = FRAGMENT_SHADER_TEMPLATE.format(**complete_src_attrs)
       renderer.load_fragment_shader(complete_src)
 
+  def on_begin_draw(self):
+    for plugin in self.plugins:
+      plugin.on_begin_draw()
+
+  def on_end_draw(self):
+    for plugin in self.plugins:
+      plugin.on_end_draw()
+
   def draw_program_substep(self, program, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
     texture_ids = []
@@ -320,6 +346,9 @@ class MultiPassRenderer():
   # TODO: fold all arguments into dataclass
   def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
+    # Callback for plugins
+    self.on_begin_draw()
+
     # Global substep mode
     global_substep = self.config.get('substep')
     if global_substep:
@@ -332,6 +361,9 @@ class MultiPassRenderer():
     self.draw_default_mode(
         default_framebuffer, W, H, frame, time, mouse_down,
         mouse_press_pos, mouse_release_pos, mouse_move_pos)
+
+    # Callback for plugins
+    self.on_end_draw()
 
   def draw_default_mode(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
@@ -629,7 +661,7 @@ def render_offscreen(shader_file, output_file, w, h):
 
 def setup_gl_version():
   surface_format = QtGui.QSurfaceFormat()
-  surface_format.setMajorVersion(3)
+  surface_format.setMajorVersion(4)
   surface_format.setMinorVersion(3)
   surface_format.setProfile(QtGui.QSurfaceFormat.CoreProfile)
   surface_format.setOption(QtGui.QSurfaceFormat.DebugContext)
