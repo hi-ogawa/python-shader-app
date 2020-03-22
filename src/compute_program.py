@@ -1,4 +1,4 @@
-from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools
+from PySide2 import QtGui
 import OpenGL.GL as gl
 import math
 

@@ -6,7 +6,7 @@ from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
-from .plugins import SsboPlugin
+from .plugins import SsboPlugin, RasterPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 
 
@@ -192,20 +192,20 @@ class MultiPassRenderer():
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")
       self.config = DEFAULT_CONFIG
     print(f"[MultiPassRenderer] Current configuration\n{self.config}")
-    self.configure_plugins(self.config.get('plugins', []), W, H)
+    self.configure_plugins(self.config.get('plugins', []), src, W, H)
     self.configure_samplers(W, H)
     self.configure_programs(src)
 
   # TODO: remove unnecessary re-configure when reloading .glsl
-  # TODO: passing "W, H" feels so ad-hoc
-  def configure_plugins(self, plugins_config, W, H):
+  # TODO: passing `src, W, H` feels so ad-hoc
+  def configure_plugins(self, plugins_config, src, W, H):
     self.cleanup_plugins()
     for plugin_config in plugins_config:
       name = plugin_config['type']
       params = plugin_config['params']
       klass_name = name.capitalize() + 'Plugin'
       plugin = globals()[klass_name]()
-      plugin.configure(params, W, H)
+      plugin.configure(params, src, W, H)
       self.plugins += [plugin]
 
   def configure_samplers(self, W, H):
@@ -333,6 +333,10 @@ class MultiPassRenderer():
     for plugin in self.plugins:
       plugin.on_begin_draw()
 
+  def on_draw(self, *args):
+    for plugin in self.plugins:
+      plugin.on_draw(*args)
+
   def on_end_draw(self):
     for plugin in self.plugins:
       plugin.on_end_draw()
@@ -372,6 +376,9 @@ class MultiPassRenderer():
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
     # Callback for plugins
     self.on_begin_draw()
+    self.on_draw(
+        default_framebuffer, W, H, frame, time, mouse_down,
+        mouse_press_pos, mouse_release_pos, mouse_move_pos)
 
     # Global substep mode
     global_substep = self.config.get('substep')
