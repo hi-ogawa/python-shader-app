@@ -39,6 +39,11 @@ class SsboPlugin(Plugin):
         bs = self.pad_data(bs, itemsize, 16)
       return bs, len(bs)
 
+    if typ == 'eval':
+      expr = self.config['data']
+      bs = eval(expr, dict(np=np))
+      return bs, len(bs)
+
     raise RuntimeError(f"[SsboPlugin] Invalid type : {typ}")
 
   def pad_data(self, data, itemsize, alignsize): # (bytes, int, int) -> bytes
