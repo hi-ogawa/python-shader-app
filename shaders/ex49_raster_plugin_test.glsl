@@ -8,6 +8,7 @@ plugins:
   - type: raster
     params:
       primitive: GL_POINTS
+      capabilities: [GL_PROGRAM_POINT_SIZE]
       count: 64
       vertex_shader: mainVertex
       fragment_shader: mainFragment

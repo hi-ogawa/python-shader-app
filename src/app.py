@@ -374,6 +374,13 @@ class MultiPassRenderer():
   # TODO: fold all arguments into dataclass
   def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
+
+    # Clear default framebuffer
+    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
+    gl.glClearBufferfv(gl.GL_COLOR, 0, bytes(array.array('f', [0, 0, 0])))
+    gl.glClearBufferfv(gl.GL_DEPTH, 0, 1)
+    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
     # Callback for plugins
     self.on_begin_draw()
     self.on_draw(
@@ -693,6 +700,7 @@ def setup_gl_version():
   surface_format = QtGui.QSurfaceFormat()
   surface_format.setMajorVersion(4)
   surface_format.setMinorVersion(3)
+  surface_format.setDepthBufferSize(24)
   surface_format.setProfile(QtGui.QSurfaceFormat.CoreProfile)
   surface_format.setOption(QtGui.QSurfaceFormat.DebugContext)
   QtGui.QSurfaceFormat.setDefaultFormat(surface_format)

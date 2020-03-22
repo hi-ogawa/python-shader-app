@@ -107,9 +107,18 @@ class RasterPlugin(Plugin):
 
   def on_draw(self, default_framebuffer, W, H, frame, time, mouse_down,
        mouse_press_pos, mouse_release_pos, mouse_move_pos):
+
+    # Bind
+    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
     self.program.bind()
     self.vao.bind()
-    gl.glEnable(gl.GL_PROGRAM_POINT_SIZE)
+    gl.glViewport(0, 0, W, H)
+
+    # Enable capabilites
+    last_capabilities = []
+    for capability in self.config.get('capabilities', []):
+      last_capabilities += [gl.glIsEnabled(getattr(gl, capability))]
+      gl.glEnable(getattr(gl, capability))
 
     # Set uniform
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
@@ -127,11 +136,20 @@ class RasterPlugin(Plugin):
     gl.glUniform4f(self.program.uniformLocation('iMouse'), mx, my, mz, mw)
 
     count = self.config['count']
+    if type(count) == str:
+      count = eval(count)
     gl.glUniform1ui(self.program.uniformLocation('iVertexCount'), count)
 
     # Draw call
     primitive = getattr(gl, self.config['primitive'])
     gl.glDrawArrays(primitive, 0, count)
 
+    # Reset capabilites
+    for last, capability in zip(last_capabilities, self.config.get('capabilities', [])):
+      if not last:
+        gl.glDisable(getattr(gl, capability))
+
+    # Release
     self.vao.release()
     self.program.release()
+    gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
