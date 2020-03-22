@@ -1,5 +1,6 @@
 from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools
 import OpenGL.GL as gl
+import math
 
 
 COMPUTE_SHADER_TEMPLATE = """
