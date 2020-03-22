@@ -24,4 +24,5 @@ cd misc/bvh
 ninja -C build/Release ex04
 ./build/Release/ex04 --infile data/bunny/reconstruction/bun_zipper.ply --outfile ../../shaders/data/bunny
 ./build/Release/ex04 --infile data/dragon_recon/dragon_vrip_res2.ply --outfile ../../shaders/data/dragon2
+./build/Release/ex04 --infile data/octahedron.ply --outfile ../../shaders/data/octahedron
 ```

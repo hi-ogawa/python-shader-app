@@ -1,6 +1,6 @@
 //
 // Ray trace BVH using offline-made BVH data as SSBO
-// (Without base triangle data, trace until we hit leaf node.)
+// (Load triangle data and shade by normal)
 //
 
 /*
@@ -10,8 +10,24 @@ plugins:
     params:
       binding: 0
       type: file
-      # data: shaders/data/bunny.node.bin
       data: shaders/data/dragon2.node.bin
+  - type: ssbo
+    params:
+      binding: 1
+      type: file
+      data: shaders/data/dragon2.primitive.bin
+  - type: ssbo
+    params:
+      binding: 2
+      type: file
+      data: shaders/data/dragon2.vertex.bin
+      align16: 12
+  - type: ssbo
+    params:
+      binding: 3
+      type: file
+      data: shaders/data/dragon2.index.bin
+      align16: 12
 
 samplers: []
 
@@ -89,6 +105,11 @@ struct Ray {
   float tmax;
 };
 
+struct Intersection {
+  vec3 p;
+  vec3 n;
+};
+
 bool Bbox_intersect(Bbox self, Ray ray, out float hit_t) {
   // Interesect to six planes
   vec3 t0 = (self.bmin - ray.o) / ray.d;  // "negative" planes
@@ -105,19 +126,81 @@ bool Bbox_intersect(Bbox self, Ray ray, out float hit_t) {
   );
 }
 
-layout (std430, binding = 0) buffer MyBlock {
-  BvhNode_ALIGNED b_bvh_nodes[];
+struct Triangle {
+  vec3 vs[3];
 };
 
-// NOTE: Unfortunately, we need to hard code `b_bvh_nodes` since
-//       glsl allows variable length array only for SSBO
-bool intersect(Ray ray, out float hit_t, out uint hit_node) {
+bool Triangle_intersect(Triangle tri,
+    Ray ray, out Intersection isect, out float hit_t) {
+  vec3 vs[3] = tri.vs;
+  vec3 u1 = vs[1] - vs[0];
+  vec3 u2 = vs[2] - vs[0];
+
+  vec3 n = cross(u1, u2);
+  float ray_dot_n = dot(ray.d, n);
+
+  // Check if seeing ccw face
+  if (ray_dot_n >= 0) {
+    return false;
+  }
+
+  // Check if ray intersects plane(v0, n)
+  //   <(o + t d) - v0, n> = 0
+  hit_t = dot(vs[0] - ray.o, n) / ray_dot_n;
+  if (!(0 < hit_t && hit_t < ray.tmax)) {
+    return false;
+  }
+
+  // Check if p is inside of triangle
+  vec3 p = ray.o + hit_t * ray.d;
+  mat2x3 A = mat2x3(u1, u2);
+  mat3x2 AT = transpose(A);
+  vec2 st = inverse(AT * A) * AT * (p - vs[0]);  // barycentric coord
+  if (0 < st[0] && 0 < st[1] && st[0] + st[1] < 1) {
+    isect.n = normalize(n);
+    isect.p = p;
+    return true;
+  }
+  return false;
+}
+
+//
+// Global data as SSBO
+//
+
+// NOTE: Unfortunately, we need to hard code `Ssbo_bvh_nodes` in function since
+//       glsl allows variable length array only for SSBO.
+//       For such function, we prefix it as in `Global_xxx`.
+layout (std430, binding = 0) buffer Ssbo0 {
+  BvhNode_ALIGNED Ssbo_bvh_nodes[]; // align16
+};
+
+layout (std430, binding = 1) buffer Ssbo1 {
+  uint Ssbo_primitives[]; // flat
+};
+
+layout (std140, binding = 2) buffer Ssbo2 {
+  vec3 Ssbo_vertices[]; // align16
+};
+
+layout (std140, binding = 3) buffer Ssbo3 {
+  uvec3 Ssbo_indices[]; // align16
+};
+
+void Global_getTriangle(uint primitive, out Triangle tri) {
+  uvec3 index3 = Ssbo_indices[primitive];
+  tri.vs[0] = Ssbo_vertices[index3[0]];
+  tri.vs[1] = Ssbo_vertices[index3[1]];
+  tri.vs[2] = Ssbo_vertices[index3[2]];
+}
+
+bool Global_Bvh_intersect(Ray ray, bool any_hit, out Intersection isect) {
   bool hit = false;
 
   // This static array is actually unrolled as N variables
   // (e.g. when stack[64], Intel's SIMD16 compilation fails.)
   // So, we make smaller stack than the necessary bound `stack[64]`.
-  const int BVH_STACK_LIMIT = 32;
+  const int BVH_STACK_LIMIT = 24;
   uint stack[BVH_STACK_LIMIT];
 
   // Push root node index
@@ -130,28 +213,43 @@ bool intersect(Ray ray, out float hit_t, out uint hit_node) {
       break;
     }
 
-    uint node_idx = stack[stack_top];
-    BvhNode node = BvhNode_fromAligned(b_bvh_nodes[node_idx]);
-    stack_top--;
+    uint node_idx = stack[stack_top--];
+    BvhNode node = BvhNode_fromAligned(Ssbo_bvh_nodes[node_idx]);
 
     bool hit_bbox;
     float hit_bbox_t;
     hit_bbox = Bbox_intersect(node.bbox, ray, hit_bbox_t);
     if (!hit_bbox) { continue; }
 
-    if (BvhNode_isLeaf(node)) {
-      hit = true;
-      hit_node = node_idx;
-      ray.tmax = hit_t = hit_bbox_t;
+    // Go deeper for non-leaf nodes
+    if (!BvhNode_isLeaf(node)) {
+      // Traverse closer child first
+      if (0 < ray.d[node.axis]) {
+        stack[++stack_top] = node.begin + 1u;
+        stack[++stack_top] = node.begin;
+      } else {
+        stack[++stack_top] = node.begin;
+        stack[++stack_top] = node.begin + 1u;
+      }
       continue;
     }
 
-    stack_top++;
-    stack[stack_top] = node.begin;
-    stack_top++;
-    stack[stack_top] = node.begin + 1u;
-  }
+    // Traverse triangles for leaf nodes
+    for (uint i = 0; i < node.num_primitives; i++) {
+      uint primitive = Ssbo_primitives[node.begin + i];
+      Triangle tri;
+      Global_getTriangle(primitive, /*out*/ tri);
 
+      bool hit_tri;
+      float hit_tri_t;
+      hit_tri = Triangle_intersect(tri, ray, /*out*/ isect, hit_tri_t);
+      if (!hit_tri) { continue; }
+
+      hit = true;
+      ray.tmax = hit_tri_t;
+      if (any_hit) { return true; }
+    }
+  }
   return hit;
 };
 
@@ -195,7 +293,7 @@ void generateRay(vec2 frag_coord, out Ray ray) {
 
 void mainImage(out vec4 frag_color, in vec2 frag_coord){
   // Use bbox center as lookat position
-  Bbox root_bbox = BvhNode_fromAligned(b_bvh_nodes[0]).bbox;
+  Bbox root_bbox = BvhNode_fromAligned(Ssbo_bvh_nodes[0]).bbox;
   CAMERA_LOOKAT = Bbox_center(root_bbox);
 
   // Setup camera and generate ray
@@ -203,15 +301,17 @@ void mainImage(out vec4 frag_color, in vec2 frag_coord){
   generateRay(frag_coord, ray);
 
   // Intersect bvh
-  float hit_t;
-  uint hit_node;
-  bool hit = intersect(ray, /*out*/ hit_t, hit_node);
+  Intersection isect;
+  bool hit = Global_Bvh_intersect(ray, /*any_hit*/ false, /*out*/ isect);
 
   // Shade based on hit position
   vec3 color = vec3(0.0);
   if (hit) {
-    vec3 p = ray.o + hit_t * ray.d;
-    color = (p - root_bbox.bmin) / (root_bbox.bmax - root_bbox.bmin);
+    // [position]
+    // color = (isect.p - root_bbox.bmin) / (root_bbox.bmax - root_bbox.bmin);
+
+    // [normal]
+    color = 0.5 + 0.5 * isect.n;
   }
 
   frag_color = vec4(color, 1.0);

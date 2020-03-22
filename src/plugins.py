@@ -1,5 +1,6 @@
 import OpenGL.GL as gl
 import ctypes
+import numpy as np
 
 
 class Plugin():
@@ -33,9 +34,19 @@ class SsboPlugin(Plugin):
     if typ == 'file':
       file = self.config['data']
       bs = open(file, 'rb').read()
+      itemsize = self.config.get('align16')
+      if itemsize is not None:
+        bs = self.pad_data(bs, itemsize, 16)
       return bs, len(bs)
 
     raise RuntimeError(f"[SsboPlugin] Invalid type : {typ}")
+
+  def pad_data(self, data, itemsize, alignsize): # (bytes, int, int) -> bytes
+    pad = (alignsize - itemsize) % alignsize
+    a = np.frombuffer(data, dtype=np.uint8)
+    a = a.reshape((-1, itemsize))
+    a = np.pad(a, ((0, 0), (0, pad)))
+    return a.tobytes()
 
   def cleanup(self):
     gl.glDeleteBuffers(1, self.ssbo)

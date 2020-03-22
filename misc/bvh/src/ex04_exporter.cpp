@@ -25,6 +25,7 @@ print(len(nodes))
 
 
 #include <fstream>
+#include <tuple>
 
 #include "utils/ply.hpp"
 #include "utils/bvh.hpp"
@@ -43,39 +44,44 @@ struct Exporter {
   vector<uvec3> indices;
 
   void run() {
+    //
+    // Construct BVH
+    //
     loadPly(infile, vertices, indices);
     Bvh bvh = Bvh::create(vertices, indices, max_primitive);
 
+    //
+    // Emit data and statistics
+    //
 
-    //
-    // Emit statistics
-    //
-    {
-      string text = R"(
-num_vertices: %d
-num_indices: %d
-num_primitives: %d
-num_nodes: %d
-max_primitive: %d
-)";
-      std::ofstream ostr_stats{outfile + ".stats.yaml", std::ios::binary};
-      ostr_stats << format(
-          lstrip(text),
-          vertices.size(),
-          indices.size(),
-          bvh.primitives.size(),
-          bvh.nodes.size(),
-          max_primitive
-      );
-    }
+    // name, p_data, len, itemsize
+    vector<std::tuple<string, char*, size_t, size_t>> vec = {
+        #define TUPLE(NAME, VECTOR) \
+            {#NAME, (char*)VECTOR.data(), VECTOR.size(), sizeof(VECTOR[0])}
+        TUPLE(vertex,    vertices),
+        TUPLE(index,     indices),
+        TUPLE(primitive, bvh.primitives),
+        TUPLE(node,      bvh.nodes),
+        #undef TUPLE
+    };
 
-    //
-    // Emit binary data
-    //
-    {
-      std::ofstream ostr_data{outfile + ".node.bin", std::ios::binary};
-      vector<BvhNode>& nodes = bvh.nodes;
-      ostr_data.write((char*)nodes.data(), nodes.size() * sizeof(BvhNode));
+    std::ofstream ostr_stats{outfile + ".stats.yaml"};
+    string yaml_template = lstrip(R"(
+%s:
+  len: %d
+  itemsize: %d
+  nbytes: %d
+)");
+
+    for (auto& [name, p_data, len, itemsize] : vec) {
+      std::ofstream ostr{outfile + "." + name + ".bin", std::ios::binary};
+      size_t nbytes = len * itemsize;
+
+      // Emit statistics
+      ostr_stats << format(yaml_template, name, len, itemsize, nbytes);
+
+      // Emit binary data
+      ostr.write(p_data, len * itemsize);
     }
   }
 };

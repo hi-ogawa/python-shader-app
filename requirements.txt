@@ -1,5 +1,14 @@
 PyOpenGL
 PySide2
+
+# Parsing shader config header
 pyyaml
-requests
+
+# Small convinience
 pydash
+
+# Only for small binary data manipulation in SsboPlugin
+numpy
+
+# Only for shadertoy/download.py
+requests
