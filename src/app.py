@@ -90,8 +90,10 @@ class Renderer():
     for resource in [self.vao, self.vertex_buffer, self.index_buffer]:
       resource.destroy()
 
-  def draw(self, texture_ids, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  def draw(
+      self, texture_ids, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
     # State setup
     gl.glViewport(0, 0, W, H)
 
@@ -103,6 +105,8 @@ class Renderer():
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
     gl.glUniform1i(self.program.uniformLocation('iFrame'), frame)
     gl.glUniform3f(self.program.uniformLocation('iResolution'), W, H, W / H)
+    gl.glUniform1ui(self.program.uniformLocation('iKey'), key)
+    gl.glUniform1ui(self.program.uniformLocation('iKeyModifiers'), key_modifiers)
 
     for i, texture_id in enumerate(texture_ids):
       gl.glUniform1i(self.program.uniformLocation(f"iSampler{i}"), i)
@@ -341,8 +345,10 @@ class MultiPassRenderer():
     for plugin in self.plugins:
       plugin.on_end_draw()
 
-  def draw_program_substep(self, program, default_framebuffer, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  def draw_program_substep(
+      self, program, default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
     texture_ids = []
     for sampler_name in program['samplers']:
       sampler = pydash.find(self.config['samplers'], {'name': sampler_name})
@@ -367,13 +373,17 @@ class MultiPassRenderer():
 
     renderer = self.renderers[program['name']]
     renderer.draw(
-      texture_ids, W, H, frame, time, mouse_down,
-      mouse_press_pos, mouse_release_pos, mouse_move_pos)
+        texture_ids, W, H, frame, time, mouse_down,
+        mouse_press_pos, mouse_release_pos, mouse_move_pos,
+        key, key_modifiers)
 
   # default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
-  # TODO: fold all arguments into dataclass
-  def draw(self, default_framebuffer, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  # TODO: Fold all arguments into dataclass
+  # TODO: Better uniform handling
+  def draw(
+      self, default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
 
     # Clear default framebuffer
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
@@ -385,37 +395,46 @@ class MultiPassRenderer():
     self.on_begin_draw()
     self.on_draw(
         default_framebuffer, W, H, frame, time, mouse_down,
-        mouse_press_pos, mouse_release_pos, mouse_move_pos)
+        mouse_press_pos, mouse_release_pos, mouse_move_pos,
+        key, key_modifiers)
 
     # Global substep mode
     global_substep = self.config.get('substep')
     if global_substep:
       self.draw_global_substep_mode(
           global_substep, default_framebuffer, W, H, frame, time, mouse_down,
-          mouse_press_pos, mouse_release_pos, mouse_move_pos)
+          mouse_press_pos, mouse_release_pos, mouse_move_pos,
+          key, key_modifiers)
       return
 
     # Default mode
     self.draw_default_mode(
         default_framebuffer, W, H, frame, time, mouse_down,
-        mouse_press_pos, mouse_release_pos, mouse_move_pos)
+        mouse_press_pos, mouse_release_pos, mouse_move_pos,
+        key, key_modifiers)
 
     # Callback for plugins
     self.on_end_draw()
 
-  def draw_default_mode(self, default_framebuffer, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  def draw_default_mode(
+      self, default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
     for program in self.config['programs']:
-      self.draw_program_substep(program, default_framebuffer, W, H, frame, time, mouse_down,
-          mouse_press_pos, mouse_release_pos, mouse_move_pos)
+      self.draw_program_substep(
+          program, default_framebuffer, W, H, frame, time, mouse_down,
+          mouse_press_pos, mouse_release_pos, mouse_move_pos,
+          key, key_modifiers)
 
     # Swap double buffers
     for pair in self.framebuffers.values():
       pair[0], pair[1] = pair[1], pair[0]
 
-  def draw_global_substep_mode(self, global_substep,
+  def draw_global_substep_mode(
+      self, global_substep,
       default_framebuffer, W, H, frame, time, mouse_down,
-      mouse_press_pos, mouse_release_pos, mouse_move_pos):
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
     global_substep = self.config.get('substep')
     num_iter = global_substep['num_iter']
     schedule = global_substep['schedule']
@@ -428,7 +447,8 @@ class MultiPassRenderer():
           program = pydash.find(self.config['programs'], {'name': task['name']})
           self.draw_program_substep(
               program, default_framebuffer, W, H, frame, time, mouse_down,
-              mouse_press_pos, mouse_release_pos, mouse_move_pos)
+              mouse_press_pos, mouse_release_pos, mouse_move_pos,
+              key, key_modifiers)
 
         if task['type'] == 'sampler':
           pair = self.framebuffers[task['name']]
@@ -439,12 +459,14 @@ class MultiPassRenderer():
       if not program.get('substep'):
         self.draw_program_substep(
             program, default_framebuffer, W, H, frame, time, mouse_down,
-            mouse_press_pos, mouse_release_pos, mouse_move_pos)
+            mouse_press_pos, mouse_release_pos, mouse_move_pos,
+            key, key_modifiers)
 
 
 class MyWidget(QtWidgets.QOpenGLWidget):
   def __init__(self, fragment_shader_file, play_mode, parent=None):
     super(MyWidget, self).__init__(parent)
+    self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus) # Needed for triggering keyPressEvent
     self.renderer = MultiPassRenderer()
     self.fragment_shader_file = fragment_shader_file
     self.preprocess_watcher = PreprocessIncludeWatcher(self.fragment_shader_file)
@@ -464,6 +486,18 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     self.mouse_press_pos = None
     self.mouse_release_pos = None
     self.mouse_move_pos = None
+    self.key = 0               # int (cf. https://doc.qt.io/qt-5/qt.html#Key-enum)
+    self.key_modifiers = 0     # int (cf. https://doc.qt.io/qt-5/qt.html#KeyboardModifier-enum)
+
+  # override
+  def keyPressEvent(self, event): # QKeyEvent
+    self.key = event.key()
+    self.update()
+
+  # override
+  def keyReleaseEvent(self, event): # QKeyEvent
+    self.key = 0
+    self.update()
 
   # override
   def mousePressEvent(self, event):
@@ -551,13 +585,14 @@ class MyWidget(QtWidgets.QOpenGLWidget):
         self.app_time_maximum *= 2
 
     self.last_full_throttle_epoch_time = now_epoch_time
+    self.key_modifiers = int(QtGui.QGuiApplication.keyboardModifiers())
 
   def render(self):
     self.renderer.draw(
       self.defaultFramebufferObject(),
       self.width(), self.height(), self.app_frame, self.app_time,
       self.mouse_down, self.mouse_press_pos,
-      self.mouse_release_pos, self.mouse_move_pos)
+      self.mouse_release_pos, self.mouse_move_pos, self.key, self.key_modifiers)
 
   def renderPost(self):
     self.app_frame += 1
@@ -687,7 +722,8 @@ class OffscreenRenderer():
       time = frame / fps
       self.renderer.draw(
           self.fbo.handle(), self.w, self.h, frame, time, mouse_down=False,
-          mouse_press_pos=None, mouse_release_pos=None, mouse_move_pos=None)
+          mouse_press_pos=None, mouse_release_pos=None, mouse_move_pos=None,
+          key=0, key_modifiers=0)
 
 
 def render_offscreen(shader_file, output_file, w, h):

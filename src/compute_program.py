@@ -48,14 +48,18 @@ class ComputeProgram():
 
     return [ math.ceil(g / l) for g, l in zip(gg, ll)]
 
-  def draw(self, texture_ids, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  def draw(
+      self, texture_ids, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
     self.program.bind()
 
     # Uniform setup (exactly same as `Renderer.draw`)
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
     gl.glUniform1i(self.program.uniformLocation('iFrame'), frame)
     gl.glUniform3f(self.program.uniformLocation('iResolution'), W, H, W / H)
+    gl.glUniform1ui(self.program.uniformLocation('iKey'), key)
+    gl.glUniform1ui(self.program.uniformLocation('iKeyModifiers'), key_modifiers)
 
     for i, texture_id in enumerate(texture_ids):
       gl.glUniform1i(self.program.uniformLocation(f"iSampler{i}"), i)

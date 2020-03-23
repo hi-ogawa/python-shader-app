@@ -8,8 +8,10 @@ class Plugin():
   def configure(self, config, src, W, H): pass
   def cleanup(self): pass
   def on_begin_draw(self): pass
-  def on_draw(self, default_framebuffer, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos): pass
+  def on_draw(
+      self, default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers): pass
   def on_end_draw(self): pass
 
 
@@ -105,8 +107,10 @@ class RasterPlugin(Plugin):
     if not self.program.link():
       raise RuntimeError(f"[VertexPlugin] Link: \n{self.program.log()}")
 
-  def on_draw(self, default_framebuffer, W, H, frame, time, mouse_down,
-       mouse_press_pos, mouse_release_pos, mouse_move_pos):
+  def on_draw(
+      self, default_framebuffer, W, H, frame, time, mouse_down,
+      mouse_press_pos, mouse_release_pos, mouse_move_pos,
+      key, key_modifiers):
 
     # Bind
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
@@ -124,6 +128,8 @@ class RasterPlugin(Plugin):
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
     gl.glUniform1i(self.program.uniformLocation('iFrame'), frame)
     gl.glUniform3f(self.program.uniformLocation('iResolution'), W, H, W / H)
+    gl.glUniform1ui(self.program.uniformLocation('iKey'), key)
+    gl.glUniform1ui(self.program.uniformLocation('iKeyModifiers'), key_modifiers)
 
     mz, mw = mouse_press_pos or (0, H - 1)
     if mouse_down:
