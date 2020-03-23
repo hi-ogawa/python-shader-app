@@ -124,6 +124,12 @@ class RasterPlugin(Plugin):
       last_capabilities += [gl.glIsEnabled(getattr(gl, capability))]
       gl.glEnable(getattr(gl, capability))
 
+    # Blend setting
+    if self.config.get('blend'):
+      gl.glEnable(gl.GL_BLEND)
+      gl.glBlendEquation(gl.GL_FUNC_ADD)
+      gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
     # Set uniform
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
     gl.glUniform1i(self.program.uniformLocation('iFrame'), frame)
@@ -154,6 +160,8 @@ class RasterPlugin(Plugin):
     for last, capability in zip(last_capabilities, self.config.get('capabilities', [])):
       if not last:
         gl.glDisable(getattr(gl, capability))
+
+    gl.glDisable(gl.GL_BLEND)
 
     # Release
     self.vao.release()
