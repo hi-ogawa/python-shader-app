@@ -387,7 +387,7 @@ class MultiPassRenderer():
 
     # Clear default framebuffer
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
-    gl.glClearBufferfv(gl.GL_COLOR, 0, bytes(array.array('f', [0, 0, 0])))
+    gl.glClearBufferfv(gl.GL_COLOR, 0, bytes(array.array('f', [0, 0, 0, 1])))
     gl.glClearBufferfv(gl.GL_DEPTH, 0, 1)
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
 
@@ -709,7 +709,7 @@ class OffscreenRenderer():
     self.context = QtGui.QOpenGLContext()
     self.context.create()
     self.context.makeCurrent(self.surface)
-    self.fbo = QtGui.QOpenGLFramebufferObject(self.w, self.h)
+    self.fbo = QtGui.QOpenGLFramebufferObject(self.w, self.h, QtGui.QOpenGLFramebufferObject.Depth)
     self.renderer = MultiPassRenderer()
 
   def render(self, shader_file):
