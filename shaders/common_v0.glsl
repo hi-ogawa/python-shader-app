@@ -102,7 +102,21 @@ mat4 perspectiveTransform(float yfov, float aspect_ratio, float near, float far)
 
 mat4 lookatTransform(vec3 loc, vec3 lookat_loc, vec3 up) {
   vec3 z = normalize(loc - lookat_loc);
+  // TODO: x is not normalized here but it seems `pivotTransform_v2` below is depending on this bug
+  //       So, use lookatTransform_v2 if correct one is needed.
   vec3 x = - cross(z, up);
+  vec3 y = cross(z, x);
+  mat4 xform = mat4(
+      x,   0.0,
+      y,   0.0,
+      z,   0.0,
+      loc, 1.0);
+  return xform;
+}
+
+mat4 lookatTransform_v2(vec3 loc, vec3 lookat_loc, vec3 up) {
+  vec3 z = normalize(loc - lookat_loc);
+  vec3 x = - normalize(cross(z, up));
   vec3 y = cross(z, x);
   mat4 xform = mat4(
       x,   0.0,
@@ -149,6 +163,7 @@ mat4 pivotTransform(vec3 init_loc, vec3 lookat_loc, vec2 delta) {
   return xform;
 }
 
+// TODO: it seems this behaviour is depending on bug in `lookatTransform`
 mat4 pivotTransform_v2(vec3 init_loc, vec3 lookat_loc, vec2 delta) {
   // relative to lookat_loc
   vec3 init_loc_rel = init_loc - lookat_loc;
