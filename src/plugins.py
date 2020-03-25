@@ -2,6 +2,7 @@ from PySide2 import QtGui
 import OpenGL.GL as gl
 import ctypes
 import numpy as np
+from .common import ShaderError
 
 
 class Plugin():
@@ -48,7 +49,7 @@ class SsboPlugin(Plugin):
       bs = eval(expr, dict(np=np))
       return bs, len(bs)
 
-    raise RuntimeError(f"[SsboPlugin] Invalid type : {typ}")
+    raise ShaderError(f"[SsboPlugin] Invalid type : {typ}")
 
   def pad_data(self, data, itemsize, alignsize): # (bytes, int, int) -> bytes
     pad = (alignsize - itemsize) % alignsize
@@ -92,7 +93,7 @@ class RasterPlugin(Plugin):
     ])
     vs_success = self.program.addShaderFromSourceCode(QtGui.QOpenGLShader.Vertex, vs_src)
     if not vs_success:
-      raise RuntimeError(f"[VertexPlugin] Vertex: \n{self.program.log()}")
+      raise ShaderError(f"[VertexPlugin] Vertex: \n{self.program.log()}")
 
     fs_name = self.config['fragment_shader']
     fs_src = '\n'.join([
@@ -102,10 +103,10 @@ class RasterPlugin(Plugin):
     ])
     fs_success = self.program.addShaderFromSourceCode(QtGui.QOpenGLShader.Fragment, fs_src)
     if not fs_success:
-      raise RuntimeError(f"[VertexPlugin] Fragment: \n{self.program.log()}")
+      raise ShaderError(f"[VertexPlugin] Fragment: \n{self.program.log()}")
 
     if not self.program.link():
-      raise RuntimeError(f"[VertexPlugin] Link: \n{self.program.log()}")
+      raise ShaderError(f"[VertexPlugin] Link: \n{self.program.log()}")
 
   def on_draw(
       self, default_framebuffer, W, H, frame, time, mouse_down,

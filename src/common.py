@@ -1,0 +1,2 @@
+class ShaderError(RuntimeError):
+  pass

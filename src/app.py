@@ -8,6 +8,7 @@ from .utils import \
     handle_OpenGL_debug_message
 from .plugins import SsboPlugin, RasterPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
+from .common import ShaderError
 
 
 VERTEX_SHADER_SOURCE = """
@@ -35,8 +36,6 @@ VERTEX_SPEC = {
   'vert_position_': (gl.GL_FLOAT, 0, 2, 2 * 4),
 }
 
-class ShaderError(RuntimeError):
-  pass
 
 class Renderer():
   def __init__(self):

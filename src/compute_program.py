@@ -1,6 +1,7 @@
 from PySide2 import QtGui
 import OpenGL.GL as gl
 import math
+from .common import ShaderError
 
 
 COMPUTE_SHADER_TEMPLATE = """
