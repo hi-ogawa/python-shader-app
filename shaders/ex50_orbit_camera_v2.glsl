@@ -11,13 +11,15 @@ plugins:
     params:
       binding: 0
       type: file
-      data: shaders/data/octahedron.vertex.bin
+      # data: shaders/data/octahedron.vertex.bin
+      data: shaders/data/cube_subdiv.v.bin
       align16: 12
   - type: ssbo
     params:
       binding: 1
       type: file
-      data: shaders/data/octahedron.index.bin
+      # data: shaders/data/octahedron.index.bin
+      data: shaders/data/cube_subdiv.f.bin
       align16: 12
   - type: ssbo
     params:
@@ -28,7 +30,8 @@ plugins:
     params:
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST]
-      count: "8 * 3"
+      # count: "8 * 3"
+      count: "3 * 2 * 6 * 4**3"  # tri * quad/tri * cube * 4**subdiv
       vertex_shader: mainVertex
       fragment_shader: mainFragment
   - type: raster
@@ -46,6 +49,12 @@ plugins:
       count: 1
       vertex_shader: mainVertex2
       fragment_shader: mainFragment2
+  - type: raster
+    params:
+      primitive: GL_POINTS
+      count: 1
+      vertex_shader: mainVertexUI
+      fragment_shader: mainFragmentUI
 
 samplers: []
 programs: []
@@ -145,6 +154,25 @@ layout (std140, binding = 2) buffer Ssbo2 {
     Fragment_color = Vertex_color;
   }
 #endif
+
+#ifdef COMPILE_mainVertexUI
+  uniform vec3 iResolution;
+  uniform vec4 iMouse;
+  uniform uint iKeyModifiers;
+
+  void mainVertexUI(vec2 resolution, vec4 mouse, uint key_modifiers);
+  void main() {
+    mainVertexUI(iResolution.xy, iMouse, iKeyModifiers);
+  }
+#endif
+
+#ifdef COMPILE_mainFragmentUI
+  layout (location = 0) out vec4 Fragment_color;
+  void main() {
+    discard;
+  }
+#endif
+
 
 
 //
@@ -273,40 +301,6 @@ void mainVertex(
   getVertexData(vertex_id, p, n);
   out_position = xform * vec4(p, 1.0);
   out_color = vec4(0.5 + 0.5 * n, 1.0);
-
-  // Manage global state by 1st vertex
-  if (vertex_id == 0u) {
-    bool key_shift =   bool(key_modifiers & 0x02000000u);
-    bool key_control = bool(key_modifiers & 0x04000000u);
-    bool key_alt = bool(key_modifiers & 0x08000000u);
-
-    bool initialize = key_alt || all(equal(Ssbo_camera_xform[0], vec4(0.0)));
-    if (initialize) {
-      Ssbo_lookat_p = CAMERA_LOOKAT_P;
-      Ssbo_camera_xform = lookatTransform_v2(
-          CAMERA_INIT_P, CAMERA_LOOKAT_P, vec3(0.0, 1.0, 0.0));
-      return;
-    }
-
-    bool clicked, moved, released;
-    vec2 mouse_delta;
-    getMouseDetail(
-        mouse, /*inout*/ Ssbo_mouse_down, Ssbo_mouse_down_p, Ssbo_mouse_click_p,
-        /*out*/ clicked, moved, released, mouse_delta);
-
-    if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0) {
-      vec2 delta = mouse_delta / resolution;
-      if (key_control) {
-        delta *= 4.0;
-        updateOrbitCamera(1, delta, Ssbo_camera_xform, Ssbo_lookat_p);
-      } else if (key_shift) {
-        updateOrbitCamera(2, delta, Ssbo_camera_xform, Ssbo_lookat_p);
-      } else {
-        delta *= M_PI * vec2(2.0, 1.0);
-        updateOrbitCamera(0, delta, Ssbo_camera_xform, Ssbo_lookat_p);
-      }
-    }
-  }
 }
 
 void mainVertex1(uint vertex_id, vec2 resolution, out vec4 out_position, out vec4 out_color) {
@@ -328,3 +322,37 @@ void mainVertex2(uint vertex_id, vec2 resolution, out vec4 out_position, out vec
   out_position = xform * vec4(Ssbo_lookat_p, 1.0);
   out_color = vec4(1.0);
 };
+
+
+void mainVertexUI(vec2 resolution, vec4 mouse, uint key_modifiers) {
+  bool key_shift   = bool(key_modifiers & 0x02000000u);
+  bool key_control = bool(key_modifiers & 0x04000000u);
+  bool key_alt     = bool(key_modifiers & 0x08000000u);
+
+  bool initialize = key_alt || all(equal(Ssbo_camera_xform[0], vec4(0.0)));
+  if (initialize) {
+    Ssbo_lookat_p = CAMERA_LOOKAT_P;
+    Ssbo_camera_xform = lookatTransform_v2(
+        CAMERA_INIT_P, CAMERA_LOOKAT_P, vec3(0.0, 1.0, 0.0));
+    return;
+  }
+
+  bool clicked, moved, released;
+  vec2 mouse_delta;
+  getMouseDetail(
+      mouse, /*inout*/ Ssbo_mouse_down, Ssbo_mouse_down_p, Ssbo_mouse_click_p,
+      /*out*/ clicked, moved, released, mouse_delta);
+
+  if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0) {
+    vec2 delta = mouse_delta / resolution;
+    if (key_control) {
+      delta *= 4.0;
+      updateOrbitCamera(1, delta, Ssbo_camera_xform, Ssbo_lookat_p);
+    } else if (key_shift) {
+      updateOrbitCamera(2, delta, Ssbo_camera_xform, Ssbo_lookat_p);
+    } else {
+      delta *= M_PI * vec2(2.0, 1.0);
+      updateOrbitCamera(0, delta, Ssbo_camera_xform, Ssbo_lookat_p);
+    }
+  }
+}
