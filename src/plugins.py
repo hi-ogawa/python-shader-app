@@ -62,10 +62,11 @@ class SsboPlugin(Plugin):
     gl.glDeleteBuffers(1, self.ssbo)
 
   def on_begin_draw(self):
-    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, self.binding, self.ssbo);
+    gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, self.binding, self.ssbo)
 
   def on_end_draw(self):
-    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0);
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
+    gl.glMemoryBarrier(gl.GL_SHADER_STORAGE_BARRIER_BIT)
 
 
 # Quick-and-dirty usual rasterizer OpenGL pipeline as plugin
