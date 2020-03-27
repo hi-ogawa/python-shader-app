@@ -43,6 +43,7 @@ samplers:
     mipmap: false
     wrap: clamp
     filter: nearest
+    internal_format: GL_RGBA32F
 
 programs:
   - name: mainImage1
@@ -395,11 +396,12 @@ vec3 renderPixel(vec2 frag_coord) {
 
 void mainImage1(out vec4 frag_color, vec2 frag_coord, sampler2D buf){
   // Accumulate color by running average
-  // NOTE: As a nice special case, if Ssbo_frame_count == 1,
-  //       then `color_now` overwrites buffer.
   vec3 color_now = renderPixel(frag_coord);
   vec3 color_prev = texelFetch(buf, ivec2(frag_coord), 0).xyz;
   vec3 color = mix(color_prev, color_now, 1.0 / float(Ssbo_frame_count));
+  if (Ssbo_frame_count == 1) {
+    color = color_now;
+  }
   frag_color.xyz = color;
 }
 

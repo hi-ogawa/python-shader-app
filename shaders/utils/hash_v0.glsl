@@ -16,6 +16,10 @@ uint hash31u(uvec3 x) {
   return hash11u(hash11u(hash11u(x[0]) + x[1]) + x[2]);
 }
 
+uint hash41u(uvec4 x) {
+  return hash11u(hash11u(hash11u(hash11u(x[0]) + x[1]) + x[2]) + x[3]);
+}
+
 uvec2 hash22u(uvec2 x) {
   return uvec2(hash21u(x), hash31u(uvec3(x, 1u)));
 }
@@ -63,6 +67,10 @@ float hash21(vec2 x) {
 
 float hash31(vec3 x) {
   return uintToUnitFloat(hash31u(floatBitsToUint(x)));
+}
+
+float hash41(vec4 x) {
+  return uintToUnitFloat(hash41u(floatBitsToUint(x)));
 }
 
 vec2 hash22(vec2 x) {
