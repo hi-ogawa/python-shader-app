@@ -11,6 +11,8 @@ uniform float iTime;
 uniform int iFrame;
 uniform vec3 iResolution;
 uniform vec4 iMouse;
+uniform uint iKey;
+uniform uint iKeyModifiers;
 {sampler_uniform_decls}
 void {name}(uvec3, uvec3 {sampler_arg_decls});
 void main() {{

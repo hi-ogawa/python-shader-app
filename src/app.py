@@ -143,6 +143,8 @@ uniform float iTime;
 uniform int iFrame;
 uniform vec3 iResolution;
 uniform vec4 iMouse;
+uniform uint iKey;
+uniform uint iKeyModifiers;
 layout (location = 0) out vec4 iMainFragColor;
 {sampler_uniform_decls}
 void {name}(out vec4, vec2 {sampler_arg_decls});
