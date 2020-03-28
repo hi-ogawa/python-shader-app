@@ -6,7 +6,7 @@ from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
-from .plugins import SsboPlugin, RasterPlugin
+from .plugins import SsboPlugin, RasterPlugin, SsboscriptPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 from .common import ShaderError
 
@@ -494,6 +494,8 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   def keyPressEvent(self, event): # QKeyEvent
     self.key = event.key()
     self.update()
+    if self.key == QtCore.Qt.Key_R:
+      self.load_fragment_shader_file()
 
   # override
   def keyReleaseEvent(self, event): # QKeyEvent

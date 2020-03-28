@@ -5,6 +5,14 @@ import numpy as np
 from .common import ShaderError
 
 
+def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
+  pad = (alignsize - itemsize) % alignsize
+  a = np.frombuffer(data, dtype=np.uint8)
+  a = a.reshape((-1, itemsize))
+  a = np.pad(a, ((0, 0), (0, pad)))
+  return a.tobytes()
+
+
 class Plugin():
   def configure(self, config, src, W, H): pass
   def cleanup(self): pass
@@ -41,7 +49,7 @@ class SsboPlugin(Plugin):
       bs = open(file, 'rb').read()
       itemsize = self.config.get('align16')
       if itemsize is not None:
-        bs = self.pad_data(bs, itemsize, 16)
+        bs = pad_data(bs, itemsize, 16)
       return bs, len(bs)
 
     if typ == 'eval':
@@ -51,18 +59,45 @@ class SsboPlugin(Plugin):
 
     raise ShaderError(f"[SsboPlugin] Invalid type : {typ}")
 
-  def pad_data(self, data, itemsize, alignsize): # (bytes, int, int) -> bytes
-    pad = (alignsize - itemsize) % alignsize
-    a = np.frombuffer(data, dtype=np.uint8)
-    a = a.reshape((-1, itemsize))
-    a = np.pad(a, ((0, 0), (0, pad)))
-    return a.tobytes()
-
   def cleanup(self):
     gl.glDeleteBuffers(1, self.ssbo)
 
   def on_begin_draw(self):
     gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, self.binding, self.ssbo)
+
+  def on_end_draw(self):
+    gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
+    gl.glMemoryBarrier(gl.GL_SHADER_STORAGE_BARRIER_BIT)
+
+
+class SsboscriptPlugin(Plugin):
+  def configure(self, config, src, W, H):
+    self.config = config
+    self.exec     = config['exec']
+    self.bindings = config['bindings']
+    N = len(self.bindings)
+    self.align16s = config.get('align16', [16] * N)
+    self.ssbos = [gl.glGenBuffers(1) for _ in range(N)]
+    self.setup_data()
+
+  def setup_data(self):
+    exec_ns = dict(RESULT=None)
+    exec(self.exec, exec_ns)
+    ls_data = exec_ns['RESULT']  # List[bytes]
+
+    for data, align16, ssbo in zip(ls_data, self.align16s, self.ssbos):
+      data = pad_data(data, align16, 16)
+      gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, ssbo)
+      gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, len(data), data, gl.GL_DYNAMIC_DRAW);
+      gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0);
+
+  def cleanup(self):
+    for ssbo in self.ssbos:
+      gl.glDeleteBuffers(1, ssbo)
+
+  def on_begin_draw(self):
+    for binding, ssbo in zip(self.bindings, self.ssbos):
+      gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, binding, ssbo)
 
   def on_end_draw(self):
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
