@@ -1,16 +1,5 @@
 //
-// Mesh viewer
-//
-// - [x] SsboScript plugin
-// - [ ] Coordinate grid
-//   - anti alias
-//   - fading
-// - [ ] Shading mode
-//   - phong
-//   - normal
-//   - wireframe
-//   - smooth shading
-// - [ ] RasterScript plugin
+// SsboscriptPlugin test
 //
 
 /*
@@ -24,7 +13,10 @@ plugins:
   - type: ssboscript
     params:
       bindings: [1, 2]
-      exec: "NUM_ITER = 3; exec(open('misc/subdivision/exec.py').read())"
+      exec: |
+        from misc.mesh.src.data import hedron20
+        verts, faces = hedron20()
+        RESULT = bytes(verts), bytes(faces)
       align16: [12, 12]
   - type: raster
     params:
@@ -53,7 +45,7 @@ programs: []
 
 offscreen_option:
   fps: 60
-  num_frames: 256
+  num_frames: 2
 %%config-end%%
 */
 

@@ -6,7 +6,7 @@ from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
-from .plugins import SsboPlugin, RasterPlugin, SsboscriptPlugin
+from .plugins import SsboPlugin, RasterPlugin, SsboscriptPlugin, RasterscriptPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 from .common import ShaderError
 

@@ -45,3 +45,11 @@ float mix3(
       mix2(f000, f001, f010, f011, p.yz),
       mix2(f100, f101, f110, f111, p.yz), p.x);
 }
+
+float pow4(float x) {
+  return x*x*x*x;
+}
+
+float pow5(float x) {
+  return x*x*x*x*x;
+}

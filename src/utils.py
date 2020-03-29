@@ -169,3 +169,27 @@ def parse_shader_config(src):
 
   config = yaml.load(src[start.end():end.start()], Loader=yaml.SafeLoader)
   return config
+
+
+# cf. https://stackoverflow.com/questions/15506971/recursive-version-of-reload
+def reload_rec(root):
+  from importlib import reload
+  from types import ModuleType
+  import os
+
+  root = reload(root)
+  root_dir = os.path.dirname(root.__file__)
+  visited = set()
+  stack = [root]
+  while len(stack) > 0:
+    m = stack.pop()
+    visited.add(m)
+    for key in dir(m):
+        c = getattr(m, key)
+        go = type(c) is ModuleType and \
+             not (c in visited) and \
+             os.path.dirname(c.__file__).startswith(root_dir)
+        if go:
+          reload(c)
+          stack.append(c)
+  return root

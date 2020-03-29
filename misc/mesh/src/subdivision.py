@@ -1,8 +1,4 @@
-#
-# Cf. ex53_ssbo_script_plugin_test.glsl
-#
-
-import numpy as np; Np = np.array
+import numpy as np
 
 
 def find_if(ls, predicate):
@@ -108,46 +104,3 @@ def subdivision(vertex_data, neighbor20): # -> (vertex_data', neighbor20')
       new_vertex_data[v0] += (n - 2) * vertex_data[v0] / n**2
 
   return new_vertex_data, new_neighbor20
-
-
-def repeat(n, func):
-    def decorated(*args):
-        for i in range(n):
-            args = func(*args)
-        return args
-    return decorated
-
-
-#
-# Example
-#
-
-verts = Np([
-  0, 0, 0,
-  1, 0, 0,
-  1, 1, 0,
-  0, 1, 0,
-  0, 0, 1,
-  1, 0, 1,
-  1, 1, 1,
-  0, 1, 1,
-], dtype=np.float32).reshape((-1, 3))
-verts -= 0.5
-
-faces = Np([
-  0, 3, 2, 1,
-  0, 1, 5, 4,
-  1, 2, 6, 5,
-  2, 3, 7, 6,
-  3, 0, 4, 7,
-  4, 5, 6, 7,
-], dtype=np.uint32).reshape((-1, 4))
-
-verts, faces = repeat(NUM_ITER, subdivision)(verts, faces)
-verts = Np(verts, dtype=np.float32)
-faces = Np(faces, dtype=np.uint32)
-
-# quads to tris
-faces = faces[:, [0, 1, 2, 0, 2, 3]]
-
-RESULT = [bytes(verts), bytes(faces)]
