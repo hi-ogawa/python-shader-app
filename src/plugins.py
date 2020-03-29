@@ -316,7 +316,10 @@ class RasterscriptPlugin(Plugin):
 
     # Draw call
     primitive = getattr(gl, self.config['primitive'])
-    gl.glDrawElements(primitive, len(self.index_data), gl.GL_UNSIGNED_INT, ctypes.c_void_p(0))
+    instance_count = self.config.get('instance_count', 1)
+    gl.glDrawElementsInstanced(
+        primitive, len(self.index_data), gl.GL_UNSIGNED_INT,
+        ctypes.c_void_p(0), instance_count)
 
     # Reset capabilites
     for last, capability in zip(last_capabilities, self.config.get('capabilities', [])):
