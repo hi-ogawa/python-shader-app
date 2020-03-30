@@ -1,4 +1,5 @@
 import numpy as np;  Np = np.array
+from .numba_optim import compute_smooth_vertex_normals
 
 
 # structure-of-array to array-of-structure
@@ -60,25 +61,6 @@ def compute_vertex_normals(p_vs, faces):
   return n_vs
 
 
-def compute_smooth_vertex_normals(p_vs, faces):
-  # @params
-  #   p_vs:  Np[N, 3]
-  #   faces: Np[K, 3]
-  # @returns
-  #   n_vs:  Np[N, 3]
-  n_vs = np.zeros_like(p_vs)                    # Np[N, 3]
-  d_vs = np.zeros(len(p_vs), dtype=p_vs.dtype)  # Np[N]
-  for vs in faces:
-    ps = [p_vs[v] for v in vs]
-    n = np.cross(ps[1] - ps[0], ps[2] - ps[0])
-    n /= np.linalg.norm(n)
-    for v0 in vs:
-      n_vs[v0] += n
-      d_vs[v0] += 1
-  n_vs = n_vs / d_vs.reshape((-1, 1))  # not normalized
-  return n_vs
-
-
 def finalize(p_vs, faces, smooth):
   assert p_vs.dtype == np.float32
   assert faces.dtype == np.uint32
@@ -95,4 +77,5 @@ def normalize_positions(p_vs):
   m = np.min(p_vs, axis=0)
   M = np.max(p_vs, axis=0)
   c = (m + M) / 2
-  return (p_vs - m) / (M - m) * 2 - 1
+  s = (M - m)[np.argmin(M - m)]
+  return (p_vs - m) / s * 2 - 1

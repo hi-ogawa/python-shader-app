@@ -1,4 +1,7 @@
 ```
+# Precompile numba source (generates e.g. src/numba_optim_bin.cpython-38-x86_64-linux-gnu.so)
+python -m src.numba_optim_compile
+
 # Run test
 python -m unittest -v src/test.py
 ```

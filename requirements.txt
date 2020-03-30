@@ -12,3 +12,6 @@ numpy
 
 # Only for shadertoy/download.py
 requests
+
+# Cf. misc/mesh/src/numba_optim.py
+numba

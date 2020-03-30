@@ -31,10 +31,12 @@ plugins:
         import misc.mesh.src.loader_ply as loader_ply
         import misc.mesh.src.utils as utils
         RELOAD_REC(loader_ply)
+        RELOAD_REC(utils)
         # [ ascii format ]
-        p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res3.ply')
+        # p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res3.ply')
+        p_vs, faces = loader_ply.load('misc/bvh/data/dragon_recon/dragon_vrip_res4.ply')
 
-        # [ binary format ] (a bit too much vertex)
+        # [ binary format ]
         # p_vs, faces = loader_ply.load('misc/bvh/data/Armadillo.ply')
         p_vs = utils.normalize_positions(p_vs)
         verts, faces = utils.finalize(p_vs, faces, smooth=True)
@@ -130,7 +132,7 @@ mat4 getVertexTransform(vec2 resolution) {
   void main() {
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(Vertex_position, 1.0);
-    Interp_color = vec4(0.5 + 0.5 * Vertex_normal, 1.0);
+    Interp_color = vec4(0.5 + 0.5 * normalize(Vertex_normal), 1.0);
   }
 #endif
 
