@@ -28,9 +28,8 @@ plugins:
 
       # [ Loader test ]
       exec: |
-        import misc.mesh.src.loader_ply as loader_ply
-        import misc.mesh.src.loader_obj as loader_obj
-        import misc.mesh.src.utils as utils
+        import numpy as np
+        from misc.mesh.src import utils, loader_ply, loader_obj, loader_gltf
         # [ ply ascii format ]
         p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res2.ply')
         # p_vs, faces = loader_ply.load('misc/bvh/data/dragon_recon/dragon_vrip_res2.ply')
@@ -40,8 +39,21 @@ plugins:
 
         # [ obj format ]
         # p_vs, faces = loader_obj.load('misc/bvh/data/spider.obj')
+
         p_vs = utils.normalize_positions(p_vs)
         verts, faces = utils.finalize(p_vs, faces, smooth=False)
+
+        # [ gltf format ]
+        verts_dict, faces = loader_gltf.load(
+            'misc/bvh/data/gltf/DamagedHelmet/DamagedHelmet.gltf',
+            'misc/bvh/data/gltf/DamagedHelmet/DamagedHelmet.bin')
+        p_vs, n_vs = verts_dict['POSITION'], verts_dict['NORMAL']
+        p_vs = utils.normalize_positions(p_vs)
+        rotate = np.array([[1, 0, 0], [0, 0, 1], [0,-1, 0]], np.float32)
+        p_vs = p_vs @ rotate
+        n_vs = n_vs @ rotate
+        verts = utils.soa_to_aos(p_vs, n_vs)
+
         RESULT = bytes(verts), bytes(faces)
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST]

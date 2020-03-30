@@ -19,3 +19,13 @@ Download data from assimp test (https://github.com/assimp/assimp)
 ```
 wget -c https://raw.githubusercontent.com/assimp/assimp/master/test/models/OBJ/spider.obj
 ```
+
+
+Download data from gltf samples (https://github.com/KhronosGroup/glTF-Sample-Models)
+
+```
+mkdir -p gltf/DamagedHelmet
+URL_BASE=https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/DamagedHelmet/glTF
+wget -P gltf/DamagedHelmet -c "${URL_BASE}"/DamagedHelmet.{gltf,bin}
+wget -P gltf/DamagedHelmet -c "${URL_BASE}"/Default_{albedo,metalRoughness,emissive,AO,normal}.jpg
+```

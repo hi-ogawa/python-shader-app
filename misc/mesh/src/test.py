@@ -1,5 +1,5 @@
 import unittest, tempfile, shutil, contextlib, os
-from . import data, utils, loader_ply, loader_obj
+from . import data, utils, loader_ply, loader_obj, loader_gltf
 
 
 class TestUtils(unittest.TestCase):
@@ -52,3 +52,17 @@ class TestUtils(unittest.TestCase):
     p_vs, faces = loader_obj.load(filename)
     self.assertEqual(p_vs.shape, (762, 3))
     self.assertEqual(faces.shape, (1368, 3))
+
+
+  def test_loader_gltf(self):
+    relpath1 = '../../bvh/data/gltf/DamagedHelmet/DamagedHelmet.gltf'
+    relpath2 = '../../bvh/data/gltf/DamagedHelmet/DamagedHelmet.bin'
+    gltf_file = os.path.join(os.path.dirname(__file__), relpath1)
+    buffer_file = os.path.join(os.path.dirname(__file__), relpath2)
+    verts_dict, faces = loader_gltf.load(gltf_file, buffer_file)
+    self.assertEqual(set(verts_dict.keys()), {'POSITION', 'NORMAL', 'TEXCOORD_0'})
+    p_vs, n_vs, uv_vs = verts_dict['POSITION'], verts_dict['NORMAL'], verts_dict['TEXCOORD_0']
+    self.assertEqual(p_vs.shape, (14556, 3))
+    self.assertEqual(n_vs.shape, (14556, 3))
+    self.assertEqual(uv_vs.shape, (14556, 2))
+    self.assertEqual(faces.shape, (46356 // 3, 3))
