@@ -18,6 +18,7 @@ void {name}(uvec3, uvec3 {sampler_arg_decls});
 void main() {{
   {name}(gl_GlobalInvocationID, gl_LocalInvocationID {sampler_args});
 }}
+#define COMPILE_{name}
 {src}
 """
 

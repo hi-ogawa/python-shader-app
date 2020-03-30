@@ -328,6 +328,8 @@ class RasterscriptPlugin(Plugin):
     # Draw call
     primitive = getattr(gl, self.config['primitive'])
     instance_count = self.config.get('instance_count', 1)
+    if type(instance_count) == str:
+      instance_count = eval(instance_count)
     gl.glDrawElementsInstanced(
         primitive, len(self.index_data), gl.GL_UNSIGNED_INT,
         ctypes.c_void_p(0), instance_count)

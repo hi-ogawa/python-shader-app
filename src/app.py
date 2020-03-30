@@ -151,6 +151,7 @@ void {name}(out vec4, vec2 {sampler_arg_decls});
 void main() {{
   {name}(iMainFragColor, vec2(gl_FragCoord) {sampler_args});
 }}
+#define COMPILE_{name}
 {src}
 """
 
