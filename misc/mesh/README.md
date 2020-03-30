@@ -10,5 +10,8 @@ TODO
 - [x] example mesh
   - 4hedron, 8hedron, 20hedron
 - [ ] file loader
-  - ply
-  - obj
+  - [x] ply
+  - [ ] obj
+- [ ] optimize mesh processing
+  - python loop free implementation
+    - numpy trick or use numba

@@ -18,21 +18,42 @@ plugins:
       size: 1024
   - type: rasterscript
     params:
+      # [ Geometry test (Regular polyhedra, subdivision, smooth normal)]
+      # exec: |
+      #   import misc.mesh.src.ex00 as ex00
+      #   RELOAD_REC(ex00)
+      #   # RESULT = ex00.example('cube', num_subdiv=2, smooth=True)
+      #   # RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
+      #   RESULT = ex00.example('hedron20', num_subdiv=2, smooth=False)
+
+      # [ Ply loader test ]
       exec: |
-        import misc.mesh.src.ex00 as ex00
-        RELOAD_REC(ex00)
-        # RESULT = ex00.example('cube', num_subdiv=2, smooth=True)
-        # RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
-        RESULT = ex00.example('hedron20', num_subdiv=2, smooth=False)
+        import misc.mesh.src.loader_ply as loader_ply
+        import misc.mesh.src.utils as utils
+        RELOAD_REC(loader_ply)
+        # [ ascii format ]
+        p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res3.ply')
+
+        # [ binary format ] (a bit too much vertex)
+        # p_vs, faces = loader_ply.load('misc/bvh/data/Armadillo.ply')
+        p_vs = utils.normalize_positions(p_vs)
+        verts, faces = utils.finalize(p_vs, faces, smooth=True)
+        RESULT = bytes(verts), bytes(faces)
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST]
+
+      # [ Simple lighting ]
       vertex_shader: mainVertexShading
       fragment_shader: mainFragmentShading
+
+      # [ Normal shading mode ]
       # vertex_shader: mainVertexNormal
       # fragment_shader: mainFragmentColor
+
       vertex_attributes:
         Vertex_position: "(gl.GL_FLOAT, 0 * 4, 3, (3 + 3) * 4)"
         Vertex_normal:   "(gl.GL_FLOAT, 3 * 4, 3, (3 + 3) * 4)"
+
   - type: rasterscript
     params:
       exec: |

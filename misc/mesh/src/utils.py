@@ -89,3 +89,10 @@ def finalize(p_vs, faces, smooth):
     n_vs = compute_vertex_normals(p_vs, faces)
   verts = soa_to_aos(p_vs, n_vs)
   return verts, faces
+
+
+def normalize_positions(p_vs):
+  m = np.min(p_vs, axis=0)
+  M = np.max(p_vs, axis=0)
+  c = (m + M) / 2
+  return (p_vs - m) / (M - m) * 2 - 1
