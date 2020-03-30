@@ -19,27 +19,29 @@ plugins:
   - type: rasterscript
     params:
       # [ Geometry test (Regular polyhedra, subdivision, smooth normal)]
-      # exec: |
-      #   import misc.mesh.src.ex00 as ex00
-      #   RELOAD_REC(ex00)
-      #   # RESULT = ex00.example('cube', num_subdiv=2, smooth=True)
-      #   # RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
-      #   RESULT = ex00.example('hedron20', num_subdiv=2, smooth=False)
+      #exec: |
+      #  import misc.mesh.src.ex00 as ex00
+      #  RELOAD_REC(ex00)
+      #  # RESULT = ex00.example('cube', num_subdiv=1, smooth=False)
+      #  # RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
+      #  RESULT = ex00.example('hedron20', num_subdiv=2, smooth=True)
 
-      # [ Ply loader test ]
+      # [ Loader test ]
       exec: |
         import misc.mesh.src.loader_ply as loader_ply
+        import misc.mesh.src.loader_obj as loader_obj
         import misc.mesh.src.utils as utils
-        RELOAD_REC(loader_ply)
-        RELOAD_REC(utils)
-        # [ ascii format ]
-        # p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res3.ply')
-        p_vs, faces = loader_ply.load('misc/bvh/data/dragon_recon/dragon_vrip_res4.ply')
+        # [ ply ascii format ]
+        p_vs, faces = loader_ply.load('misc/bvh/data/bunny/reconstruction/bun_zipper_res2.ply')
+        # p_vs, faces = loader_ply.load('misc/bvh/data/dragon_recon/dragon_vrip_res2.ply')
 
-        # [ binary format ]
+        # [ ply binary format ]
         # p_vs, faces = loader_ply.load('misc/bvh/data/Armadillo.ply')
+
+        # [ obj format ]
+        # p_vs, faces = loader_obj.load('misc/bvh/data/spider.obj')
         p_vs = utils.normalize_positions(p_vs)
-        verts, faces = utils.finalize(p_vs, faces, smooth=True)
+        verts, faces = utils.finalize(p_vs, faces, smooth=False)
         RESULT = bytes(verts), bytes(faces)
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST]

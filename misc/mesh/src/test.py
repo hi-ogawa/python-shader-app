@@ -1,5 +1,5 @@
 import unittest, tempfile, shutil, contextlib, os
-from . import data, utils, loader_ply
+from . import data, utils, loader_ply, loader_obj
 
 
 class TestUtils(unittest.TestCase):
@@ -44,3 +44,11 @@ class TestUtils(unittest.TestCase):
     p_vs, faces = loader_ply.load(filename)
     self.assertEqual(p_vs.shape, (172974, 3))
     self.assertEqual(faces.shape, (345944, 3))
+
+
+  def test_loader_obj(self):
+    relpath = '../../bvh/data/spider.obj'
+    filename = os.path.join(os.path.dirname(__file__), relpath)
+    p_vs, faces = loader_obj.load(filename)
+    self.assertEqual(p_vs.shape, (762, 3))
+    self.assertEqual(faces.shape, (1368, 3))

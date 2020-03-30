@@ -1,5 +1,6 @@
 import numpy as np;  Np = np.array
-from .numba_optim import compute_smooth_vertex_normals
+from .numba_optim import \
+    compute_vertex_normals, compute_smooth_vertex_normals
 
 
 # structure-of-array to array-of-structure
@@ -20,14 +21,9 @@ def uniqify_vertices(verts, faces):
   # @returns
   #   verts: Np[K*L, M]
   #   faces: Np[K, L]
-  new_verts = np.empty_like(verts, shape=(np.prod(faces.shape), verts.shape[1]))
-  new_faces = np.empty_like(faces)
-  V = 0
-  for f, vs in enumerate(faces):
-    for i, v in enumerate(vs):
-      new_faces[f, i] = V
-      new_verts[V] = verts[v]
-      V += 1
+  K, L = faces.shape
+  new_faces = np.arange(K * L, dtype=np.uint32).reshape((K, L))
+  new_verts = verts[faces.reshape(-1)]
   return new_verts, new_faces
 
 
@@ -45,22 +41,6 @@ def compute_face_normals(p_vs, faces):
   return n_vs
 
 
-def compute_vertex_normals(p_vs, faces):
-  # @params
-  #   p_vs:  Np[N, 3]
-  #   faces: Np[K, 3]
-  # @returns
-  #   n_vs:  Np[N, 3]
-  n_vs = np.zeros_like(p_vs)  # Np[N, 3]
-  for vs in faces:
-    ps = [p_vs[v] for v in vs]
-    n = np.cross(ps[1] - ps[0], ps[2] - ps[0])
-    n /= np.linalg.norm(n)
-    for v0 in vs:
-      n_vs[v0] = n
-  return n_vs
-
-
 def finalize(p_vs, faces, smooth):
   assert p_vs.dtype == np.float32
   assert faces.dtype == np.uint32
@@ -73,9 +53,10 @@ def finalize(p_vs, faces, smooth):
   return verts, faces
 
 
+# scale/translate into [-1, 1]^3
 def normalize_positions(p_vs):
   m = np.min(p_vs, axis=0)
   M = np.max(p_vs, axis=0)
   c = (m + M) / 2
-  s = (M - m)[np.argmin(M - m)]
-  return (p_vs - m) / s * 2 - 1
+  s = (M - m)[np.argmax(M - m)]
+  return (p_vs - c) / s * 2
