@@ -1,5 +1,13 @@
 #define M_PI 3.14159
 
+float reduce(vec2 v) {
+  return v[0] + v[1];
+}
+
+float reduce(vec3 v) {
+  return v[0] + v[1] + v[2];
+}
+
 float reduceMax(vec3 v) {
   return max(v[0], max(v[1], v[2]));
 }
@@ -44,6 +52,14 @@ float mix3(
   return mix(
       mix2(f000, f001, f010, f011, p.yz),
       mix2(f100, f101, f110, f111, p.yz), p.x);
+}
+
+float pow2(float x) {
+  return x*x;
+}
+
+float pow3(float x) {
+  return x*x*x;
 }
 
 float pow4(float x) {

@@ -270,6 +270,17 @@ class RasterscriptPlugin(Plugin):
     if not fs_success:
       raise ShaderError(f"[RasterscriptPlugin] Fragment: \n{self.program.log()}")
 
+    gs_name = self.config.get('geometry_shader')
+    if gs_name:
+      gs_src = '\n'.join([
+        '#version 430 core',
+        '#define COMPILE_' + gs_name,
+        src,
+      ])
+      gs_success = self.program.addShaderFromSourceCode(QtGui.QOpenGLShader.Geometry, gs_src)
+      if not gs_success:
+        raise ShaderError(f"[RasterscriptPlugin] Geometry: \n{self.program.log()}")
+
     if not self.program.link():
       raise ShaderError(f"[RasterscriptPlugin] Link: \n{self.program.log()}")
 
