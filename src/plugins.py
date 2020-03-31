@@ -17,11 +17,12 @@ def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
 class Plugin():
   def configure(self, config, src, W, H): pass
   def cleanup(self): pass
+  def on_bind_program(self, program_handle): pass
   def on_begin_draw(self): pass
   def on_draw(
       self, default_framebuffer, W, H, frame, time, mouse_down,
       mouse_press_pos, mouse_release_pos, mouse_move_pos,
-      key, key_modifiers): pass
+      key, key_modifiers, plugins): pass
   def on_end_draw(self): pass
 
 
@@ -148,13 +149,17 @@ class RasterPlugin(Plugin):
   def on_draw(
       self, default_framebuffer, W, H, frame, time, mouse_down,
       mouse_press_pos, mouse_release_pos, mouse_move_pos,
-      key, key_modifiers):
+      key, key_modifiers, plugins):
 
     # Bind
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
     self.program.bind()
     self.vao.bind()
     gl.glViewport(0, 0, W, H)
+
+    # TODO: for now it's so adhoc
+    for plugin in plugins:
+      plugin.on_bind_program(self.program.programId())
 
     # Enable capabilites
     last_capabilities = []
@@ -287,7 +292,7 @@ class RasterscriptPlugin(Plugin):
   def on_draw(
       self, default_framebuffer, W, H, frame, time, mouse_down,
       mouse_press_pos, mouse_release_pos, mouse_move_pos,
-      key, key_modifiers):
+      key, key_modifiers, plugins):
 
     # Bind
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, default_framebuffer)
@@ -307,6 +312,10 @@ class RasterscriptPlugin(Plugin):
       gl.glEnable(gl.GL_BLEND)
       gl.glBlendEquation(gl.GL_FUNC_ADD)
       gl.glBlendFunc(gl.GL_SRC_ALPHA, gl.GL_ONE_MINUS_SRC_ALPHA)
+
+    # TODO: for now it's so adhoc
+    for plugin in plugins:
+      plugin.on_bind_program(self.program.programId())
 
     # Set uniform
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
@@ -345,3 +354,64 @@ class RasterscriptPlugin(Plugin):
     self.vao.release()
     self.program.release()
     gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+
+
+# TODO: Migrate texture support from app.py to this plugin
+class TexturePlugin(Plugin):
+  def configure(self, config, src, W, H):
+    self.config = config
+    self.qimage, self.handle = TexturePlugin.create_image(
+        self.config['file'], self.config.get('y_flip'))
+    TexturePlugin.configure_texture(self.handle, self.config)
+
+  def cleanup(self):
+    gl.glDeleteTextures(self.handle)
+
+  @staticmethod
+  def create_image(file, y_flip):
+    qimage = QtGui.QImage(file)
+    if y_flip:
+      qimage = qimage.mirrored(False, True)  # flip y direction
+    qimage_format = qimage.format()
+    assert qimage_format != QtGui.QImage.Format_Invalid
+    if qimage_format != QtGui.QImage.Format_RGBA8888:
+      qimage = qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
+
+    # Allocate gl resource
+    handle = gl.glGenTextures(1)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+    W, H = qimage.width(), qimage.height()
+    gl.glTexImage2D(
+        gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, W, H, 0,
+        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+    return qimage, handle
+
+  @staticmethod
+  def configure_texture(handle, config):
+    # Setup mipmap-level, filter-mode, wrap-mode
+    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
+        gl.GL_REPEAT if config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
+        gl.GL_REPEAT if config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
+    if config['filter'] == 'linear':
+      min_filter = gl.GL_LINEAR_MIPMAP_NEAREST if config['mipmap'] else gl.GL_LINEAR
+      mag_filter = gl.GL_LINEAR
+    else:
+      min_filter = gl.GL_NEAREST_MIPMAP_NEAREST if config['mipmap'] else gl.GL_NEAREST
+      mag_filter = gl.GL_NEAREST
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, min_filter)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, mag_filter)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
+    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
+    if config['mipmap']:
+      gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+
+  def on_bind_program(self, program_handle):
+    location = gl.glGetUniformLocation(program_handle, self.config['name'])
+    index = self.config['index']
+    gl.glUniform1i(location, index)
+    gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{index}"))
+    gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)

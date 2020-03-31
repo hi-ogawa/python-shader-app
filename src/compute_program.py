@@ -55,8 +55,12 @@ class ComputeProgram():
   def draw(
       self, texture_ids, W, H, frame, time, mouse_down,
       mouse_press_pos, mouse_release_pos, mouse_move_pos,
-      key, key_modifiers):
+      key, key_modifiers, plugins):
     self.program.bind()
+
+    # TODO: for now it's so adhoc
+    for plugin in plugins:
+      plugin.on_bind_program(self.program.programId())
 
     # Uniform setup (exactly same as `Renderer.draw`)
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)

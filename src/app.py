@@ -6,7 +6,9 @@ from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
-from .plugins import SsboPlugin, RasterPlugin, SsboscriptPlugin, RasterscriptPlugin
+from .plugins import \
+    SsboPlugin, RasterPlugin, SsboscriptPlugin, \
+    RasterscriptPlugin, TexturePlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 from .common import ShaderError
 
@@ -92,13 +94,17 @@ class Renderer():
   def draw(
       self, texture_ids, W, H, frame, time, mouse_down,
       mouse_press_pos, mouse_release_pos, mouse_move_pos,
-      key, key_modifiers):
+      key, key_modifiers, plugins):
     # State setup
     gl.glViewport(0, 0, W, H)
 
     self.program.bind()
     self.vao.bind()
     self.index_buffer.bind()
+
+    # TODO: for now it's so adhoc
+    for plugin in plugins:
+      plugin.on_bind_program(self.program.programId())
 
     # Uniform setup
     gl.glUniform1f(self.program.uniformLocation('iTime'), time)
@@ -132,6 +138,7 @@ class Renderer():
 
 
 DEFAULT_CONFIG = {
+  'plugins': [],
   'samplers': [],
   'programs': [ { 'name': 'mainImage', 'output': '$default', 'samplers': [] } ],
   'offscreen_option': { 'fps': 60, 'num_frames': 1 }
@@ -377,7 +384,7 @@ class MultiPassRenderer():
     renderer.draw(
         texture_ids, W, H, frame, time, mouse_down,
         mouse_press_pos, mouse_release_pos, mouse_move_pos,
-        key, key_modifiers)
+        key, key_modifiers, self.plugins)
 
   # default_framebuffer : GLuint (e.g. QOpenGLFramebufferObject.handle(), QOpenGLWidget.defaultFramebufferObject())
   # TODO: Fold all arguments into dataclass
@@ -398,7 +405,7 @@ class MultiPassRenderer():
     self.on_draw(
         default_framebuffer, W, H, frame, time, mouse_down,
         mouse_press_pos, mouse_release_pos, mouse_move_pos,
-        key, key_modifiers)
+        key, key_modifiers, self.plugins)
 
     # Global substep mode
     global_substep = self.config.get('substep')
