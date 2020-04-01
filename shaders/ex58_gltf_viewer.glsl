@@ -59,6 +59,21 @@ plugins:
         Vertex_position: "(gl.GL_FLOAT, 0 * 4, 3, (3 + 4) * 4)"
         Vertex_color:    "(gl.GL_FLOAT, 3 * 4, 4, (3 + 4) * 4)"
 
+  # [ Quad to shade environment ]
+  - type: rasterscript
+    params:
+      exec: |
+        import numpy as np
+        p_vs = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]] , np.float32)
+        faces = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
+        RESULT = (bytes(p_vs), bytes(faces))
+      primitive: GL_TRIANGLES
+      capabilities: [GL_DEPTH_TEST]
+      vertex_shader: mainVertexEnvironment
+      fragment_shader: mainFragmentEnvironment
+      vertex_attributes:
+        Vertex_position: "(gl.GL_FLOAT, 0 * 4, 2, 2 * 4)"
+
   # [ UI state management ]
   - type: raster
     params:
@@ -111,6 +126,21 @@ plugins:
       wrap: repeat
       filter: linear
       index: 4
+
+  # [ Environment texture ]
+  - type: texture
+    params:
+      name: tex_environment
+      type: file
+      # file: shaders/images/hdrihaven/sunflowers_1k.hdr.png
+      file: shaders/images/hdrihaven/sunflowers_1k.hdr
+      # file: shaders/images/hdrihaven/sunflowers_4k.hdr
+      mipmap: true
+      wrap: repeat
+      filter: linear
+      y_flip: true
+      index: 5
+
 
 samplers: []
 programs: []
@@ -283,6 +313,30 @@ mat4 getVertexTransform(vec2 resolution) {
     // color = n_mapped;
     // color = max(-n_mapped, 0.0);
 
+    Fragment_color = vec4(color, 1.0);
+  }
+#endif
+
+
+#ifdef COMPILE_mainVertexEnvironment
+  layout (location = 0) in vec2 Vertex_position;
+  void main() {
+    gl_Position = vec4(Vertex_position, 1 - 1e-7, 1.0);
+  }
+#endif
+
+#ifdef COMPILE_mainFragmentEnvironment
+  uniform vec3 iResolution;
+  uniform sampler2D tex_environment;
+  layout (location = 0) out vec4 Fragment_color;
+
+  void main() {
+    vec2 frag_coord = gl_FragCoord.xy;
+    mat3 ray_xform = mat3(Ssbo_camera_xform) * mat3(OZN.xyy, OZN.yxy, OZN.yyz) * T_invView(kYfov, iResolution.xy);
+    vec3 ray_dir = ray_xform * vec3(frag_coord, 1.0);
+    vec2 uv = T_texcoordLatLng(ray_dir);
+    vec3 color = texture(tex_environment, uv).xyz;
+    color = encodeGamma(color);
     Fragment_color = vec4(color, 1.0);
   }
 #endif

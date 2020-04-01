@@ -360,7 +360,7 @@ class RasterscriptPlugin(Plugin):
 class TexturePlugin(Plugin):
   def configure(self, config, src, W, H):
     self.config = config
-    self.qimage, self.handle = TexturePlugin.create_image(
+    self.handle = TexturePlugin.create_image(
         self.config['file'], self.config.get('y_flip'))
     TexturePlugin.configure_texture(self.handle, self.config)
 
@@ -369,6 +369,31 @@ class TexturePlugin(Plugin):
 
   @staticmethod
   def create_image(file, y_flip):
+    if file.endswith('.hdr'):
+      return TexturePlugin.create_image_hdr(file, y_flip)
+    return TexturePlugin.create_image_default(file, y_flip)
+
+  @staticmethod
+  def create_image_hdr(file, y_flip):
+    # Use my hdr loader
+    import misc.hdr.src.main_v2 as main
+    with open(file, 'rb') as f:
+      data = main.load(f)  # float32[h, w, 3]
+    if y_flip:
+      data = np.flip(data, axis=0)
+
+    # Allocate gl resource
+    handle = gl.glGenTextures(1)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
+    H, W = data.shape[:2]
+    gl.glTexImage2D(
+        gl.GL_TEXTURE_2D, 0, gl.GL_RGB32F, W, H, 0,
+        gl.GL_RGB, gl.GL_FLOAT, data)
+    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+    return handle
+
+  @staticmethod
+  def create_image_default(file, y_flip):
     qimage = QtGui.QImage(file)
     if y_flip:
       qimage = qimage.mirrored(False, True)  # flip y direction
@@ -385,7 +410,7 @@ class TexturePlugin(Plugin):
         gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, W, H, 0,
         gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
     gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-    return qimage, handle
+    return handle
 
   @staticmethod
   def configure_texture(handle, config):

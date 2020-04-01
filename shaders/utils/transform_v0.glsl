@@ -113,3 +113,15 @@ mat3 T_axisAngle(vec3 v, float rad) {
   mat3 P = T_rotate3(vec3(0.0, rtp[1], rtp[2]));
   return P * T_rotate3(vec3(0.0, 0.0, rad)) * inverse(P);
 }
+
+
+vec2 T_texcoordLatLng(vec3 dir) {
+  vec3 rtp = T_cartesianToSpherical(dir.zxy);
+  float theta = rtp.y;
+  float phi = rtp.z;
+
+  // Reorient so that original image's midde row goes like (+z, -x, -z, +x, -z)
+  return vec2(
+      1.0 - (mod(phi, 2.0 * M_PI) / (2.0 * M_PI)),
+      1.0 - theta / M_PI);
+}
