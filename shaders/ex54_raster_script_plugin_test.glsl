@@ -20,11 +20,19 @@ plugins:
     params:
       # [ Geometry test (Regular polyhedra, subdivision, smooth normal)]
       #exec: |
-      #  import misc.mesh.src.ex00 as ex00
-      #  RELOAD_REC(ex00)
-      #  # RESULT = ex00.example('cube', num_subdiv=1, smooth=False)
-      #  # RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
-      #  RESULT = ex00.example('hedron20', num_subdiv=2, smooth=True)
+      #  from misc.mesh.src import ex00, data, utils
+      #  RESULT = ex00.example('cube', num_subdiv=1, smooth=False)
+      #  RESULT = ex00.example('cube', num_subdiv=2, smooth=False)
+      #  RESULT = ex00.example('hedron20', num_subdiv=0, smooth=False)
+
+      # [ More geometry test ]
+      #exec: |
+      #  from misc.mesh.src import data, utils
+      #  p_vs, faces = data.hedron20()
+      #  for _ in range(5):
+      #    p_vs, faces = utils.geodesic_subdiv(p_vs, faces)
+      #  verts, faces = utils.finalize(p_vs, faces, smooth=False)
+      #  RESULT = bytes(verts), bytes(faces)
 
       # [ Loader test ]
       exec: |

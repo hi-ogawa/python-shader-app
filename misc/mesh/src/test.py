@@ -24,6 +24,17 @@ class TestUtils(unittest.TestCase):
     verts = utils.soa_to_aos(p_vs, n_vs)
     self.assertEqual(verts.shape, (36, 6))
 
+  def test_misc01(self):
+    p_vs, faces = data.hedron12()
+    faces = utils.pantas_to_tris(faces)
+    self.assertEqual(p_vs.shape, (20, 3))
+    self.assertEqual(faces.shape, (12 * 3, 3))
+
+  def test_misc02(self):
+    p_vs, faces = data.hedron4()
+    p_vs, faces = utils.geodesic_subdiv(p_vs, faces)
+    self.assertEqual(p_vs.shape, (4 + 6, 3))
+    self.assertEqual(faces.shape, (4 * 4, 3))
 
   def test_loader_ply(self):
     # [format ascii 1.0]

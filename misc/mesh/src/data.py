@@ -127,3 +127,38 @@ def hedron20():
   ], np.uint32).reshape((-1, 3))
 
   return p_vs, faces
+
+
+# hedron20 as dual of hedron12
+def hedron12():
+  p_vs, faces = hedron20()
+
+  # dual verts as center of three original verts
+  new_p_vs = (p_vs[faces[:, 0]] + p_vs[faces[:, 1]] + p_vs[faces[:, 2]]) / 3
+  new_p_vs /= np.linalg.norm(new_p_vs[0])  # project to unit sphere
+
+  # dual faces
+  # 1. gather neighbors
+  neighbor0200 = [[] for _ in range(len(p_vs))]
+  for f, vs in enumerate(faces):
+    for v, v_prev, v_next in zip(vs, np.roll(vs, 1, axis=0), np.roll(vs, -1, axis=0)):
+      neighbor0200[v].append((f, v_next, v_prev))
+
+  # 2. sort neighbors in ccw
+  def sort(n200): # List[(f, (v0, v1))]
+    new_n200 = [n200.pop()]
+    while len(n200) > 0:
+      _, _, v1 = new_n200[-1]
+      found = next(filter(lambda fv0v1: fv0v1[1] == v1, n200))
+      n200.remove(found)
+      new_n200.append(found)
+    return new_n200
+
+  new_faces = [[] for _ in range(len(p_vs))]
+  for v, n200 in enumerate(neighbor0200):
+    n200 = sort(n200)
+    new_faces[v] = [f for f, _, _ in n200]
+  assert all(len(vs) == 5 for vs in new_faces)
+
+  new_faces = Np(new_faces, np.uint32)
+  return new_p_vs, new_faces
