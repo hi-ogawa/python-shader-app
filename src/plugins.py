@@ -1,6 +1,6 @@
-from PySide2 import QtGui
+from PySide2 import QtCore, QtGui, QtUiTools
 import OpenGL.GL as gl
-import ctypes
+import os, ctypes, dataclasses
 import numpy as np
 from .common import ShaderError
 from .utils import reload_rec
@@ -14,8 +14,17 @@ def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
   return a.tobytes()
 
 
+@dataclasses.dataclass
+class PluginConfigureArg:
+  config: dict
+  src: str
+  W: int
+  H: int
+  offscreen: bool
+
+
 class Plugin():
-  def configure(self, config, src, W, H): pass
+  def configure(self, arg : PluginConfigureArg): pass
   def cleanup(self): pass
   def on_bind_program(self, program_handle): pass
   def on_begin_draw(self): pass
@@ -27,9 +36,9 @@ class Plugin():
 
 
 class SsboPlugin(Plugin):
-  def configure(self, config, src, W, H):
-    self.W, self.H = W, H  # in order to support "eval" for size
-    self.config = config
+  def configure(self, arg):
+    self.W, self.H = arg.W, arg.H  # in order to support "eval" for size
+    self.config = arg.config
     self.binding = self.config['binding']
     self.ssbo = gl.glGenBuffers(1)
     data, size = self.get_data()
@@ -73,12 +82,12 @@ class SsboPlugin(Plugin):
 
 
 class SsboscriptPlugin(Plugin):
-  def configure(self, config, src, W, H):
-    self.config = config
-    self.exec     = config['exec']
-    self.bindings = config['bindings']
+  def configure(self, arg):
+    self.config = arg.config
+    self.exec     = self.config['exec']
+    self.bindings = self.config['bindings']
     N = len(self.bindings)
-    self.align16s = config.get('align16', [16] * N)
+    self.align16s = self.config.get('align16', [16] * N)
     self.ssbos = [gl.glGenBuffers(1) for _ in range(N)]
     self.setup_data()
 
@@ -108,10 +117,10 @@ class SsboscriptPlugin(Plugin):
 
 # Quick-and-dirty usual rasterizer OpenGL pipeline as plugin
 class RasterPlugin(Plugin):
-  def configure(self, config, src, W, H):
-    self.config = config
+  def configure(self, arg):
+    self.config = arg.config
     self.setup_vao()
-    self.setup_program(src)
+    self.setup_program(arg.src)
 
   def cleanup(self):
     self.vao.destroy()
@@ -214,10 +223,10 @@ class RasterPlugin(Plugin):
 
 # TODO: no more copy&paste
 class RasterscriptPlugin(Plugin):
-  def configure(self, config, src, W, H):
-    self.config = config
+  def configure(self, arg):
+    self.config = arg.config
     self.exec_script()
-    self.setup_program(src)
+    self.setup_program(arg.src)
     self.setup_vao()
 
   def cleanup(self):
@@ -358,8 +367,8 @@ class RasterscriptPlugin(Plugin):
 
 # TODO: Migrate texture support from app.py to this plugin
 class TexturePlugin(Plugin):
-  def configure(self, config, src, W, H):
-    self.config = config
+  def configure(self, arg):
+    self.config = arg.config
     self.handle = TexturePlugin.create_image(
         self.config['file'], self.config.get('y_flip'))
     TexturePlugin.configure_texture(self.handle, self.config)
@@ -440,3 +449,51 @@ class TexturePlugin(Plugin):
     gl.glUniform1i(location, index)
     gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{index}"))
     gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)
+
+
+# TODO:
+# - support vector data
+# - ignore this plugin when offscreen
+# - close this window when main window is closed
+# - trigger render (i.e. MyWidget.update) when value changed
+class UniformPlugin(Plugin):
+  def configure(self, arg):
+    # config params: name, default, min, max, resolution
+    self.config = arg.config
+    self.offscreen = arg.offscreen
+    self.resolution = self.config.get('resolution', 100)
+    if not self.offscreen:
+      self.setup_gui()
+      self.set_value(self.config['default'])
+
+  def cleanup(self):
+    if not self.offscreen:
+      self.window.close()
+
+  def setup_gui(self):
+    filename = os.path.join(os.path.dirname(__file__), 'uniform_plugin.ui')
+    data = QtCore.QByteArray(open(filename, 'rb').read())
+    buffer = QtCore.QBuffer(data)
+    self.window = QtUiTools.QUiLoader().load(buffer)
+    self.window.setWindowTitle(self.config['name'])
+    self.slider = self.window.findChild(QtCore.QObject, 'horizontalSlider')
+    self.label = self.window.findChild(QtCore.QObject, 'label')
+    self.slider.setRange(
+        self.config['min'] * self.resolution,
+        self.config['max'] * self.resolution)
+    self.slider.valueChanged.connect(
+        lambda *_: self.label.setText(f"{self.get_value(): >4.2f}"))
+
+    # Quick trick to prevent this window from appearing before the main window
+    QtCore.QTimer.singleShot(500, lambda *_: self.window.show())
+
+  def set_value(self, v):
+    return self.slider.setValue(v * self.resolution)
+
+  def get_value(self):
+    return self.slider.value() / self.resolution
+
+  def on_bind_program(self, program_handle):
+    if not self.offscreen:
+      location = gl.glGetUniformLocation(program_handle, self.config['name'])
+      gl.glUniform1f(location, self.get_value())

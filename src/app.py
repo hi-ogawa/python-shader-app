@@ -7,8 +7,9 @@ from .utils import \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
     handle_OpenGL_debug_message
 from .plugins import \
+    PluginConfigureArg, \
     SsboPlugin, RasterPlugin, SsboscriptPlugin, \
-    RasterscriptPlugin, TexturePlugin
+    RasterscriptPlugin, TexturePlugin, UniformPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 from .common import ShaderError
 
@@ -168,12 +169,13 @@ MyImage = collections.namedtuple('MyImage', [
 ])
 
 class MultiPassRenderer():
-  def __init__(self):
+  def __init__(self, offscreen):
     self.config = None     # dict (cf. parse_shader_config)
     self.renderers = {}    # map<str, Renderer>
     self.framebuffers = {} # map<str, (QOpenGLFramebufferObject, QOpenGLFramebufferObject)>
     self.images = {}       # map<str, MyImage>
     self.plugins = []      # list<Plugin>
+    self.offscreen = offscreen # bool
 
   def cleanup(self):
     self.cleanup_renderers()
@@ -210,7 +212,6 @@ class MultiPassRenderer():
     self.configure_programs(src)
 
   # TODO: remove unnecessary re-configure when reloading .glsl
-  # TODO: passing `src, W, H` feels so ad-hoc
   def configure_plugins(self, plugins_config, src, W, H):
     self.cleanup_plugins()
     for plugin_config in plugins_config:
@@ -218,7 +219,7 @@ class MultiPassRenderer():
       params = plugin_config['params']
       klass_name = name.capitalize() + 'Plugin'
       plugin = globals()[klass_name]()
-      plugin.configure(params, src, W, H)
+      plugin.configure(PluginConfigureArg(params, src, W, H, self.offscreen))
       self.plugins += [plugin]
 
   def configure_samplers(self, W, H):
@@ -476,7 +477,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   def __init__(self, fragment_shader_file, play_mode, parent=None):
     super(MyWidget, self).__init__(parent)
     self.setFocusPolicy(QtCore.Qt.FocusPolicy.ClickFocus) # Needed for triggering keyPressEvent
-    self.renderer = MultiPassRenderer()
+    self.renderer = MultiPassRenderer(offscreen=False)
     self.fragment_shader_file = fragment_shader_file
     self.preprocess_watcher = PreprocessIncludeWatcher(self.fragment_shader_file)
 
@@ -721,7 +722,7 @@ class OffscreenRenderer():
     self.context.create()
     self.context.makeCurrent(self.surface)
     self.fbo = QtGui.QOpenGLFramebufferObject(self.w, self.h, QtGui.QOpenGLFramebufferObject.Depth)
-    self.renderer = MultiPassRenderer()
+    self.renderer = MultiPassRenderer(offscreen=True)
 
   def render(self, shader_file):
     src, _ = preprocess_include(shader_file)
