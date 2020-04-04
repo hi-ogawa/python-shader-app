@@ -59,21 +59,6 @@ plugins:
         Vertex_position: "(gl.GL_FLOAT, 0 * 4, 3, (3 + 4) * 4)"
         Vertex_color:    "(gl.GL_FLOAT, 3 * 4, 4, (3 + 4) * 4)"
 
-  # [ Quad to shade environment ]
-  - type: rasterscript
-    params:
-      exec: |
-        import numpy as np
-        p_vs = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]] , np.float32)
-        faces = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
-        RESULT = (bytes(p_vs), bytes(faces))
-      primitive: GL_TRIANGLES
-      capabilities: [GL_DEPTH_TEST]
-      vertex_shader: mainVertexEnvironment
-      fragment_shader: mainFragmentEnvironment
-      vertex_attributes:
-        Vertex_position: "(gl.GL_FLOAT, 0 * 4, 2, 2 * 4)"
-
   # [ UI state management ]
   - type: raster
     params:
@@ -126,21 +111,6 @@ plugins:
       wrap: repeat
       filter: linear
       index: 4
-
-  # [ Environment texture ]
-  - type: texture
-    params:
-      name: tex_environment
-      type: file
-      # file: shaders/images/hdrihaven/sunflowers_1k.hdr.png
-      file: shaders/images/hdrihaven/sunflowers_1k.hdr
-      # file: shaders/images/hdrihaven/sunflowers_4k.hdr
-      mipmap: true
-      wrap: repeat
-      filter: linear
-      y_flip: true
-      index: 5
-
 
 samplers: []
 programs: []
@@ -216,6 +186,7 @@ mat4 getVertexTransform(vec2 resolution) {
   uniform sampler2D tex_normal;
   uniform sampler2D tex_metalRoughness;
   uniform sampler2D tex_emissive;
+  uniform float U_scale_emissive = 12.0;
 
   in VertexInterface {
     vec3 position;
@@ -237,9 +208,6 @@ mat4 getVertexTransform(vec2 resolution) {
     // Uniform randiance
     const vec3 kEnvRadiance = vec3(0.2);
 
-    // Adhoc boost
-    const float kScaleEmissive = 12.0;
-
     vec3 wo = normalize(camera_p - p);
     vec3 wi = normalize(light_p - p);
     vec3 wh = normalize(wo + wi);
@@ -253,7 +221,7 @@ mat4 getVertexTransform(vec2 resolution) {
     vec3 L = vec3(0.0);
     L += brdf * kRadiance * dot(n, wi);
     L += ao * color * (1.0 - metalness) * kEnvRadiance; // albedo = color * (1.0 - metalness)
-    L += kScaleEmissive * emissive;
+    L += U_scale_emissive * emissive;
     return L;
   }
 
@@ -262,7 +230,7 @@ mat4 getVertexTransform(vec2 resolution) {
     vec3 n = 2.0 * n_tex - 1.0; // in [-1, 1]^3
 
     // Frame of `n` is defined as [dp_du, -dp_dv, n_vert]
-    // which can be obtained by chain rule as follow:
+    // which can be obtained by chain rule as follows:
     // (here, (a, b) represents window coordinates)
     mat2x3 dp_dab = mat2x3(dFdx(p), dFdy(p));
     mat2 duv_dab = mat2(dFdx(uv), dFdy(uv));
@@ -278,7 +246,7 @@ mat4 getVertexTransform(vec2 resolution) {
   void main() {
     // Setup geometry data
     vec3 p = Fragment_in.position;
-    vec3 n = normalize(Fragment_in.normal); // TODO: use normal map
+    vec3 n = normalize(Fragment_in.normal);
     vec2 uv = Fragment_in.uv;
     vec3 camera_p = vec3(Ssbo_camera_xform[3]);
 
@@ -313,30 +281,6 @@ mat4 getVertexTransform(vec2 resolution) {
     // color = n_mapped;
     // color = max(-n_mapped, 0.0);
 
-    Fragment_color = vec4(color, 1.0);
-  }
-#endif
-
-
-#ifdef COMPILE_mainVertexEnvironment
-  layout (location = 0) in vec2 Vertex_position;
-  void main() {
-    gl_Position = vec4(Vertex_position, 1 - 1e-7, 1.0);
-  }
-#endif
-
-#ifdef COMPILE_mainFragmentEnvironment
-  uniform vec3 iResolution;
-  uniform sampler2D tex_environment;
-  layout (location = 0) out vec4 Fragment_color;
-
-  void main() {
-    vec2 frag_coord = gl_FragCoord.xy;
-    mat3 ray_xform = mat3(Ssbo_camera_xform) * mat3(OZN.xyy, OZN.yxy, OZN.yyz) * T_invView(kYfov, iResolution.xy);
-    vec3 ray_dir = ray_xform * vec3(frag_coord, 1.0);
-    vec2 uv = T_texcoordLatLng(ray_dir);
-    vec3 color = texture(tex_environment, uv).xyz;
-    color = encodeGamma(color);
     Fragment_color = vec4(color, 1.0);
   }
 #endif
