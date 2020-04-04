@@ -9,7 +9,7 @@ from .utils import \
 from .plugins import \
     PluginConfigureArg, \
     SsboPlugin, RasterPlugin, SsboscriptPlugin, \
-    RasterscriptPlugin, TexturePlugin, UniformPlugin
+    RasterscriptPlugin, TexturePlugin, UniformPlugin, CubemapPlugin
 from .compute_program import ComputeProgram, COMPUTE_SHADER_TEMPLATE
 from .common import ShaderError
 

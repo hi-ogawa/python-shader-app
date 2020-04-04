@@ -3,7 +3,7 @@ import OpenGL.GL as gl
 import os, ctypes, dataclasses
 import numpy as np
 from .common import ShaderError
-from .utils import reload_rec, exec_config, exec_config_if_str
+from .utils import reload_rec, exec_config, exec_config_if_str, if3
 
 
 def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
@@ -443,6 +443,68 @@ class TexturePlugin(Plugin):
     gl.glUniform1i(location, index)
     gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{index}"))
     gl.glBindTexture(gl.GL_TEXTURE_2D, self.handle)
+
+
+class CubemapPlugin(Plugin):
+  SUB_TARGETS = [
+    gl.GL_TEXTURE_CUBE_MAP_POSITIVE_X,
+    gl.GL_TEXTURE_CUBE_MAP_POSITIVE_Y,
+    gl.GL_TEXTURE_CUBE_MAP_POSITIVE_Z,
+    gl.GL_TEXTURE_CUBE_MAP_NEGATIVE_X,
+    gl.GL_TEXTURE_CUBE_MAP_NEGATIVE_Y,
+    gl.GL_TEXTURE_CUBE_MAP_NEGATIVE_Z,
+  ]
+
+  def configure(self, arg):
+    self.config = arg.config
+    self.setup_cubemap()
+
+  def cleanup(self):
+    gl.glDeleteTextures(self.handle)
+
+  def setup_cubemap(self):
+    self.handle = gl.glGenTextures(1)
+    target = gl.GL_TEXTURE_CUBE_MAP
+    gl.glBindTexture(target, self.handle)
+    for file, sub_target in zip(self.config['files'], CubemapPlugin.SUB_TARGETS):
+      CubemapPlugin.setup_cubemap_data(file, sub_target)
+    CubemapPlugin.setup_cubemap_parameters(target, self.config)
+    gl.glBindTexture(target, 0)
+
+  # TODO: refactor with TexturePlugin
+  @staticmethod
+  def setup_cubemap_data(file, sub_target):
+    qimage = QtGui.QImage(file)
+    qimage_format = qimage.format()
+    assert qimage_format != QtGui.QImage.Format_Invalid
+    if qimage_format != QtGui.QImage.Format_RGBA8888:
+      qimage = qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
+    W, H = qimage.width(), qimage.height()
+    gl.glTexImage2D(
+        sub_target, 0, gl.GL_RGBA8, W, H, 0,
+        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
+
+  @staticmethod
+  def setup_cubemap_parameters(target, config):
+    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_R, gl.GL_CLAMP_TO_EDGE)
+    gl.glTexParameteri(target, gl.GL_TEXTURE_MIN_FILTER,
+        if3(config.get('filter') == 'linear', gl.GL_LINEAR_MIPMAP_LINEAR, gl.GL_NEAREST))
+    gl.glTexParameteri(target, gl.GL_TEXTURE_MAG_FILTER,
+        if3(config.get('filter') == 'linear', gl.GL_LINEAR, gl.GL_NEAREST))
+    if config.get('mipmap'):
+      gl.glTexParameteri(target, gl.GL_TEXTURE_BASE_LEVEL, 0)
+      gl.glTexParameteri(target, gl.GL_TEXTURE_MAX_LEVEL, 10)
+      gl.glGenerateMipmap(target)
+
+  def on_bind_program(self, program_handle):
+    location = gl.glGetUniformLocation(program_handle, self.config['name'])
+    index = self.config['index']
+    gl.glUniform1i(location, index)
+    gl.glActiveTexture(getattr(gl, f"GL_TEXTURE{index}"))
+    gl.glBindTexture(gl.GL_TEXTURE_CUBE_MAP, self.handle)
+    gl.glEnable(gl.GL_TEXTURE_CUBE_MAP_SEAMLESS)
 
 
 # TODO:

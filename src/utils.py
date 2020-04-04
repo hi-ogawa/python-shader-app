@@ -213,3 +213,7 @@ def exec_config_if_str(
   if type(v) == str:
     return exec_config(v, result_name, namespace)
   return v
+
+
+def if3(cond, x, y):
+  return x if cond else y
