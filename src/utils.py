@@ -1,7 +1,7 @@
 #
 # Miscellaneous helper
 #
-import sys, traceback, signal
+import sys, traceback, signal, os
 from PySide2 import QtCore
 
 
@@ -193,3 +193,23 @@ def reload_rec(root):
           reload(c)
           stack.append(c)
   return root
+
+
+DEFAULT_EXEC_NAMESPACE = dict(
+  RESULT=None,
+  RELOAD_REC=reload_rec,
+  os=os,
+)
+
+def exec_config(
+    v, result_name='RESULT',
+    namespace=DEFAULT_EXEC_NAMESPACE):
+  exec(v, namespace)
+  return namespace[result_name]
+
+def exec_config_if_str(
+    v, result_name='RESULT',
+    namespace=DEFAULT_EXEC_NAMESPACE):
+  if type(v) == str:
+    return exec_config(v, result_name, namespace)
+  return v

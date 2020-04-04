@@ -3,7 +3,7 @@ import OpenGL.GL as gl
 import os, ctypes, dataclasses
 import numpy as np
 from .common import ShaderError
-from .utils import reload_rec
+from .utils import reload_rec, exec_config, exec_config_if_str
 
 
 def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
@@ -92,9 +92,7 @@ class SsboscriptPlugin(Plugin):
     self.setup_data()
 
   def setup_data(self):
-    exec_ns = dict(RESULT=None)
-    exec(self.exec, exec_ns)
-    ls_data = exec_ns['RESULT']  # List[bytes]
+    ls_data = exec_config(self.exec)  # List[bytes]
 
     for data, align16, ssbo in zip(ls_data, self.align16s, self.ssbos):
       data = pad_data(data, align16, 16)
@@ -225,7 +223,7 @@ class RasterPlugin(Plugin):
 class RasterscriptPlugin(Plugin):
   def configure(self, arg):
     self.config = arg.config
-    self.exec_script()
+    self.vertex_data, self.index_data = exec_config(self.config['exec'])  # (bytes, bytes)
     self.setup_program(arg.src)
     self.setup_vao()
 
@@ -234,11 +232,6 @@ class RasterscriptPlugin(Plugin):
     self.index_buffer.destroy()
     self.vao.destroy()
     self.program.removeAllShaders()
-
-  def exec_script(self):
-    exec_ns = dict(RESULT=None, RELOAD_REC=reload_rec)
-    exec(self.config['exec'], exec_ns)
-    self.vertex_data, self.index_data = exec_ns['RESULT']  # (bytes, bytes)
 
   def setup_vao(self):
     self.vao = QtGui.QOpenGLVertexArrayObject()
@@ -369,8 +362,9 @@ class RasterscriptPlugin(Plugin):
 class TexturePlugin(Plugin):
   def configure(self, arg):
     self.config = arg.config
+    self.file = self.config.get('file') or exec_config(self.config['file_exec'])
     self.handle = TexturePlugin.create_image(
-        self.config['file'], self.config.get('y_flip'))
+        self.file, self.config.get('y_flip'))
     TexturePlugin.configure_texture(self.handle, self.config)
 
   def cleanup(self):
@@ -430,7 +424,7 @@ class TexturePlugin(Plugin):
     gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
         gl.GL_REPEAT if config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
     if config['filter'] == 'linear':
-      min_filter = gl.GL_LINEAR_MIPMAP_NEAREST if config['mipmap'] else gl.GL_LINEAR
+      min_filter = gl.GL_LINEAR_MIPMAP_LINEAR if config['mipmap'] else gl.GL_LINEAR
       mag_filter = gl.GL_LINEAR
     else:
       min_filter = gl.GL_NEAREST_MIPMAP_NEAREST if config['mipmap'] else gl.GL_NEAREST
@@ -453,7 +447,6 @@ class TexturePlugin(Plugin):
 
 # TODO:
 # - support vector data
-# - ignore this plugin when offscreen
 # - close this window when main window is closed
 # - trigger render (i.e. MyWidget.update) when value changed
 class UniformPlugin(Plugin):
@@ -462,9 +455,10 @@ class UniformPlugin(Plugin):
     self.config = arg.config
     self.offscreen = arg.offscreen
     self.resolution = self.config.get('resolution', 100)
+    self.default = exec_config_if_str(self.config['default'])
     if not self.offscreen:
       self.setup_gui()
-      self.set_value(self.config['default'])
+      self.set_value(self.default)
 
   def cleanup(self):
     if not self.offscreen:
@@ -491,9 +485,10 @@ class UniformPlugin(Plugin):
     return self.slider.setValue(v * self.resolution)
 
   def get_value(self):
-    return self.slider.value() / self.resolution
+    if not self.offscreen:
+      return self.slider.value() / self.resolution
+    return self.default
 
   def on_bind_program(self, program_handle):
-    if not self.offscreen:
-      location = gl.glGetUniformLocation(program_handle, self.config['name'])
-      gl.glUniform1f(location, self.get_value())
+    location = gl.glGetUniformLocation(program_handle, self.config['name'])
+    gl.glUniform1f(location, self.get_value())

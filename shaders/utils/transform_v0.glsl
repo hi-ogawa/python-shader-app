@@ -114,7 +114,7 @@ mat3 T_axisAngle(vec3 v, float rad) {
   return P * T_rotate3(vec3(0.0, 0.0, rad)) * inverse(P);
 }
 
-
+// TODO: this creates seams at uv discontinuity (u.x = 0.0, 1.0) when mipmap is used
 vec2 T_texcoordLatLng(vec3 dir) {
   vec3 rtp = T_cartesianToSpherical(dir.zxy);
   float theta = rtp.y;

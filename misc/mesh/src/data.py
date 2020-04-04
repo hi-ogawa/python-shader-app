@@ -162,3 +162,10 @@ def hedron12():
 
   new_faces = Np(new_faces, np.uint32)
   return new_p_vs, new_faces
+
+
+# full window quad [-1, 1]^2
+def quad():
+  p_vs = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]] , np.float32)
+  faces = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
+  return p_vs, faces

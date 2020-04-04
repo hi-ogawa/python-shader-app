@@ -4,6 +4,8 @@
 // - texcoordPauldebevecProbeEnvMap
 // - texcoordPauldebevecCrossEnvMap
 //
+// NOTE: interpolation artifact can be observed when mipmap is enabled
+//
 
 /*
 %%config-start%%
