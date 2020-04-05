@@ -8,6 +8,16 @@ def rgbe_to_rgb(rgbe): # uint8[.., 4] -> float32[.., 3]
   return rgb * (2.0 ** (e - (128 + 8)))
 
 
+def rgb_to_rgbe(rgb): # float32[.., 3] -> uint8[.., 4]
+  assert rgb.shape[-1] == 3
+  rgbe = np.empty((*rgb.shape[:-1], 4), dtype=np.uint8)  # uint8[.., 4]
+  rgb_max = np.max(rgb, axis=-1, keepdims=True)  # float32[.., 1]
+  mm, ee = np.frexp(rgb_max)
+  rgbe[..., 3]  = (ee[..., 0] + 128).astype(np.uint8)
+  rgbe[..., :3] = (rgb / 2.0**(ee - 8)).astype(np.uint8)
+  return rgbe
+
+
 def parse_header(io): # -> (width, height)
   ls = []
   while True:
@@ -73,3 +83,37 @@ def load(io): # -> float32[h, w, 3]
   rgb = parse_body(w, h, io)
   assert io.read() == b''
   return rgb
+
+
+def write_header(io, w, h):
+  header = f"""\
+FORMAT=32-bit_rle_rgbe
+
+-Y {h} +X {w}
+"""
+
+  io.write(bytes(header, 'ascii'))
+
+
+def write_rle(io, w, data): # uint8[w, 4] -> bytes
+  # scanline header
+  io.write(bytes([2, 2, w >> 8, w & 0xff]))
+
+  # TODO: currently no run-length-encoding
+  count = min(128, w)
+
+  # process 4 components (without rle)
+  for c in range(4):
+    i = 0
+    while i < w:
+      io.write(bytes([count]))
+      io.write(bytes(data[i:i+count, c]))
+      i += count
+
+
+def write(io, data): # float32[h, w, 3]
+  h, w = data.shape[:2]
+  write_header(io, w, h)
+  data_rgbe = rgb_to_rgbe(data)  # uint8[h, w, 4]
+  for y in range(h):
+    write_rle(io, w, data_rgbe[y])

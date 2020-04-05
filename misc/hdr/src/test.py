@@ -1,6 +1,15 @@
-import unittest, os, timeit
+import unittest, os, timeit, tempfile
 import numpy as np
 from . import main, main_v2
+
+
+def make_gradient(w, h): # -> float32[h, w, 3]
+  r = np.linspace(0, 1, num=w, dtype=np.float32)
+  g = np.linspace(0, 1, num=h,  dtype=np.float32)
+  r, g = np.meshgrid(r, g)
+  rgb = np.stack([r, g, np.zeros_like(r)], axis=-1)  # float32[h, w, 3]
+  return rgb
+
 
 class TestMisc(unittest.TestCase):
   def test_misc00(self):
@@ -24,3 +33,19 @@ class TestMisc(unittest.TestCase):
     with open(filename, 'rb') as f:
       ns = {}; ns.update(globals()); ns.update(locals())
       print(timeit.timeit('main_v2.load(f)', number=1, globals=ns))
+
+  def test_misc01(self):
+    w, h = 512, 256
+    data = make_gradient(w, h)  # float32[h, w, 3]
+    data2 = main.rgbe_to_rgb(main.rgb_to_rgbe(data)) # rgb -> rgbe -> rgb
+    self.assertTrue(np.max(np.abs(data2 - data) < 0.008))
+
+  def test_misc02(self):
+    w, h = 512, 256
+    data = make_gradient(w, h)  # float32[h, w, 3]
+
+    with tempfile.NamedTemporaryFile() as f:
+      main.write(f, data)
+      f.seek(0)
+      data2 = main.load(f)
+      self.assertTrue(np.max(np.abs(data2 - data) < 0.008))

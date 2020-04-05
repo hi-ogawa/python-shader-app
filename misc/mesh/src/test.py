@@ -1,4 +1,4 @@
-import unittest, tempfile, shutil, contextlib, os
+import unittest
 from . import data, utils, loader_ply, loader_obj, loader_gltf
 
 
