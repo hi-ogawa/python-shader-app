@@ -37,3 +37,8 @@ def load(io): # -> float32[h, w, 3]
   data = np.frombuffer(io.read(), np.uint8)
   rgb = parse_body(w, h, data)
   return rgb
+
+
+def load_file(filename): # -> float32[h, w, 3]
+  with open(filename, 'rb') as f:
+    return load(f)

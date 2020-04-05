@@ -91,7 +91,6 @@ FORMAT=32-bit_rle_rgbe
 
 -Y {h} +X {w}
 """
-
   io.write(bytes(header, 'ascii'))
 
 
@@ -112,8 +111,19 @@ def write_rle(io, w, data): # uint8[w, 4] -> bytes
 
 
 def write(io, data): # float32[h, w, 3]
+  assert np.all(data >= 0), 'Unexpected negative value'
   h, w = data.shape[:2]
   write_header(io, w, h)
   data_rgbe = rgb_to_rgbe(data)  # uint8[h, w, 4]
   for y in range(h):
     write_rle(io, w, data_rgbe[y])
+
+
+def load_file(filename): # -> float32[h, w, 3]
+  with open(filename, 'rb') as f:
+    return load(f)
+
+
+def write_file(filename, data): # str, float32[h, w, 3]
+  with open(filename, 'wb') as f:
+    write(f, data)
