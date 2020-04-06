@@ -50,8 +50,9 @@ plugins:
   - type: texture
     params:
       name: tex_environment
-      file: shaders/images/hdrihaven/aft_lounge_2k.hdr
-      #file: shaders/images/hdrihaven/carpentry_shop_02_2k.hdr
+      #file: shaders/images/pauldebevec/rnl_cross.hdr.latlng.hdr
+      #file: shaders/images/hdrihaven/aft_lounge_2k.hdr
+      file: shaders/images/hdrihaven/carpentry_shop_02_2k.hdr
       mipmap: true
       wrap: repeat
       filter: linear
@@ -63,21 +64,34 @@ plugins:
     params:
       name: tex_environment_cube
       files:
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.px.hdr
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.py.hdr
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.pz.hdr
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.nx.hdr
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.ny.hdr
-        - shaders/images/hdrihaven/aft_lounge_2k.hdr.nz.hdr
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_px.png
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_py.png
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_pz.png
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_nx.png
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_ny.png
-        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_nz.png
+        #- shaders/images/pauldebevec/rnl_cross.hdr.px.hdr
+        #- shaders/images/pauldebevec/rnl_cross.hdr.py.hdr
+        #- shaders/images/pauldebevec/rnl_cross.hdr.pz.hdr
+        #- shaders/images/pauldebevec/rnl_cross.hdr.nx.hdr
+        #- shaders/images/pauldebevec/rnl_cross.hdr.ny.hdr
+        #- shaders/images/pauldebevec/rnl_cross.hdr.nz.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.px.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.py.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.pz.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.nx.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.ny.hdr
+        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.nz.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.px.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.py.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.pz.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.nx.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.ny.hdr
+        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.nz.hdr
       mipmap: true
       filter: linear
       index: 1
+
+  - type: uniform
+    params:
+      name: U_exposure
+      default: 0
+      min: -8
+      max: 8
 
 samplers: []
 programs: []
@@ -137,22 +151,27 @@ mat4 getVertexTransform(vec2 resolution) {
   uniform vec3 iResolution;
   uniform sampler2D tex_environment;
   uniform samplerCube tex_environment_cube;
+  uniform float U_exposure = 0.0;
   layout (location = 0) out vec4 Fragment_color;
 
-  void main() {
-    vec2 frag_coord = gl_FragCoord.xy;
+  vec3 renderPixel(vec2 frag_coord) {
+    vec3 L;
     mat3 ray_xform = mat3(Ssbo_camera_xform) * mat3(OZN.xyy, OZN.yxy, OZN.yyz) * T_invView(kYfov, iResolution.xy);
     vec3 ray_dir = normalize(ray_xform * vec3(frag_coord, 1.0));
     if (kUseCubemap) {
-      // flip to left-handed frame
       vec3 cube_ray_dir = vec3(1.0, 1.0, -1.0) * ray_dir;
-      vec3 L = texture(tex_environment_cube, cube_ray_dir).xyz;
-      vec3 color = encodeGamma(L);
-      Fragment_color = vec4(color, 1.0);
-      return;
+      L = texture(tex_environment_cube, cube_ray_dir).xyz;
+    } else {
+      vec2 uv = T_texcoordLatLng(ray_dir);
+      L = texture(tex_environment, uv, 0.0).xyz;
     }
-    vec2 uv = T_texcoordLatLng(ray_dir);
-    vec3 L = texture(tex_environment, uv, 0.0).xyz;
+    L *= pow(2.0, U_exposure);
+    return L;
+  }
+
+  void main() {
+    vec2 frag_coord = gl_FragCoord.xy;
+    vec3 L = renderPixel(frag_coord);
     vec3 color = encodeGamma(L);
     Fragment_color = vec4(color, 1.0);
   }

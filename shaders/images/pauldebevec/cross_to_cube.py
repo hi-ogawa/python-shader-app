@@ -15,8 +15,8 @@ def convert(infile):
   size = cross.shape[0] // 4
 
   for name, offset, flip in PATTERNS:
-    x, y = np.array(offset) * size
-    rgb = cross[x:, y:][:size, :size]
+    y, x = np.array(offset) * size
+    rgb = cross[y:, x:][:size, :size]
     if flip:
-      rgb = np.flip(rgb, axis=0)
+      rgb = np.flip(rgb, axis=(0, 1))
     hdr.write_file(f"{infile}.{name}.hdr", rgb)
