@@ -5,7 +5,7 @@
 /*
 %%config-start%%
 plugins:
-  # [ Quad to generate fragment ]
+  # [ Buffer ]
   - type: ssbo
     params:
       binding: 0
