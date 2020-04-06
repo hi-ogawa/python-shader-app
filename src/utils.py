@@ -3,6 +3,7 @@
 #
 import sys, traceback, signal, os
 from PySide2 import QtCore
+import numpy as np
 
 
 # Wrap buggy function which is constantly invoked from Qt's eventloop
@@ -217,3 +218,11 @@ def exec_config_if_str(
 
 def if3(cond, x, y):
   return x if cond else y
+
+
+def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
+  pad = (alignsize - itemsize) % alignsize
+  a = np.frombuffer(data, dtype=np.uint8)
+  a = a.reshape((-1, itemsize))
+  a = np.pad(a, ((0, 0), (0, pad)))
+  return a.tobytes()

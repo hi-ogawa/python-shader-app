@@ -178,6 +178,7 @@ class MultiPassRenderer():
     self.offscreen = offscreen # bool
 
   def cleanup(self):
+    self.cleanup_plugins()
     self.cleanup_renderers()
     self.cleanup_images()
     self.cleanup_framebuffers()
@@ -578,7 +579,8 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     logger.messageLogged.connect(handle_OpenGL_debug_message)
     logger.startLogging()
 
-  def cleanup(self): # not used
+  # TODO: use "close event" to properly call this
+  def cleanup(self):
     self.makeCurrent()
     self.renderer.cleanup()
     self.doneCurrent()
@@ -742,6 +744,7 @@ def render_offscreen(shader_file, output_file, w, h):
   renderer = OffscreenRenderer(w, h)
   renderer.render(shader_file)
   renderer.fbo.toImage().save(output_file)
+  renderer.renderer.cleanup()
 
 
 def setup_gl_version():

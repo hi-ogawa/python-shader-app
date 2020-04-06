@@ -6,10 +6,21 @@ curl -H 'user-agent:' http://www.pauldebevec.com/Probes/  \
 | xargs -d ' ' -I@  wget -P . http://www.pauldebevec.com/Probes/@
 ```
 
-Convert all hdr into png
+Convert all hdr to png
 
 ```
 for FILE in *.hdr; do
   oiiotool -i "${FILE}" --powc 0.45 -o "${FILE}.png"
+done
+```
+
+Convert cross map to cube map
+
+```
+for FILE in shaders/images/pauldebevec/*_cross.hdr; do
+python - <<___
+from shaders.images.pauldebevec.cross_to_cube import *
+convert("$FILE")
+___
 done
 ```

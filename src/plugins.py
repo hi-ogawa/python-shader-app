@@ -3,15 +3,8 @@ import OpenGL.GL as gl
 import os, ctypes, dataclasses
 import numpy as np
 from .common import ShaderError
-from .utils import reload_rec, exec_config, exec_config_if_str, if3
-
-
-def pad_data(data, itemsize, alignsize): # (bytes, int, int) -> bytes
-  pad = (alignsize - itemsize) % alignsize
-  a = np.frombuffer(data, dtype=np.uint8)
-  a = a.reshape((-1, itemsize))
-  a = np.pad(a, ((0, 0), (0, pad)))
-  return a.tobytes()
+from .utils import \
+    pad_data, reload_rec, exec_config, exec_config_if_str, if3
 
 
 @dataclasses.dataclass
@@ -41,9 +34,9 @@ class SsboPlugin(Plugin):
     self.config = arg.config
     self.binding = self.config['binding']
     self.ssbo = gl.glGenBuffers(1)
-    data, size = self.get_data()
+    data, self.size = self.get_data()
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, self.ssbo)
-    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, size, data, gl.GL_DYNAMIC_DRAW);
+    gl.glBufferData(gl.GL_SHADER_STORAGE_BUFFER, self.size, data, gl.GL_DYNAMIC_DRAW);
     gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0);
 
   def get_data(self): # -> (data, int)
@@ -70,7 +63,14 @@ class SsboPlugin(Plugin):
 
     raise ShaderError(f"[SsboPlugin] Invalid type : {typ}")
 
+  # TODO: currently only called when "--offscreen"
   def cleanup(self):
+    on_cleanup = self.config.get('on_cleanup')
+    if on_cleanup:
+      gl.glBindBufferBase(gl.GL_SHADER_STORAGE_BUFFER, self.binding, self.ssbo)
+      data = gl.glGetBufferSubData(gl.GL_SHADER_STORAGE_BUFFER, 0, self.size)  # uint8[size]
+      exec(on_cleanup, dict(DATA=data))
+      gl.glBindBuffer(gl.GL_SHADER_STORAGE_BUFFER, 0)
     gl.glDeleteBuffers(1, self.ssbo)
 
   def on_begin_draw(self):

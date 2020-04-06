@@ -1,4 +1,4 @@
-import re
+import re, sys
 import numpy as np
 
 
@@ -19,19 +19,21 @@ def rgb_to_rgbe(rgb): # float32[.., 3] -> uint8[.., 4]
 
 
 def parse_header(io): # -> (width, height)
-  ls = []
+  format_found = False
   while True:
     l = io.readline().decode()
     assert l != '', 'Unexpected EOI'
-    l = l[:-1] # strip '\n'
 
-    if l == 'FORMAT=32-bit_rle_rgbe':
+    if l == 'FORMAT=32-bit_rle_rgbe\n':
+      format_found = True
+
+    # Empty line is end marker
+    if l == '\n':
+      assert format_found, '[parse_header] "FORMAT=32-bit_rle_rgbe" is not found'
+
       l2 = io.readline().decode()
-      assert l2 == '\n', f"Expected '\\n' but got '{l2}'"
-
-      l3 = io.readline().decode()
-      m = re.match('\-Y (\d+) \+X (\d+)\n', l3)
-      assert m, f"Expected '-Y <num> +X <num>' but got '{l3}'"
+      m = re.match('\-Y (\d+) \+X (\d+)\n', l2)
+      assert m, f"Expected '-Y <num> +X <num>' but got '{l2}'"
 
       h, w = list(map(int, m.groups()))
       return w, h
