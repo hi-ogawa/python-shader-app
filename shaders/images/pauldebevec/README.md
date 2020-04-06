@@ -24,3 +24,13 @@ convert("$FILE")
 ___
 done
 ```
+
+
+Convert cube map to latlng map
+
+```
+for FILE in shaders/images/pauldebevec/*_cross.hdr; do
+  H=512 INFILE="${FILE}" \
+    python -m src.app --width 1 --height 1 shaders/ex65_cube_to_latlng.glsl --offscreen /dev/zero
+done
+```
