@@ -91,8 +91,22 @@ def make_M_from_file(infile):
 
 
 def print_M_from_file(infile):
-  for M in make_M_from_file(infile):
-    print(format_M(M))
+  import textwrap
+  ms = make_M_from_file(infile)
+  ms_str = [textwrap.indent(format_M(m)[:-2], '    ') for m in ms]
+  return print(f"""\
+mat4[3](
+  mat4(
+{ms_str[0]}
+  ),
+  mat4(
+{ms_str[1]}
+  ),
+  mat4(
+{ms_str[2]}
+  )
+);\
+""")
 
 
 #
@@ -132,10 +146,12 @@ def make_irradiance_map(data, w, h, clamp_negative=True): # float[h_in, w_in, k]
   return result
 
 
-def make_irradiance_map_from_file(infile, outfile=None, w=256, h=128):
+def make_irradiance_map_from_file(infile, outfile=None, clip=None, w=256, h=128):
   from . import main
   if outfile is None:
     outfile = infile + '.irr.hdr'
   rgb = main.load_file(infile)
+  if clip is not None:
+    rgb = np.fmin(rgb, clip)
   rgb_irr = make_irradiance_map(rgb, w, h)
   main.write_file(outfile, rgb_irr)
