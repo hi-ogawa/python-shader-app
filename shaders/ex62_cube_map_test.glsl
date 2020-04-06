@@ -50,7 +50,8 @@ plugins:
   - type: texture
     params:
       name: tex_environment
-      file: shaders/images/hdrihaven/carpentry_shop_02_2k.hdr
+      file: shaders/images/hdrihaven/aft_lounge_2k.hdr
+      #file: shaders/images/hdrihaven/carpentry_shop_02_2k.hdr
       mipmap: true
       wrap: repeat
       filter: linear
@@ -62,12 +63,18 @@ plugins:
     params:
       name: tex_environment_cube
       files:
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_px.png
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_py.png
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_pz.png
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_nx.png
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_ny.png
-        - shaders/images/hdrihaven/carpentry_shop_02_cubemap_nz.png
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.px.hdr
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.py.hdr
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.pz.hdr
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.nx.hdr
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.ny.hdr
+        - shaders/images/hdrihaven/aft_lounge_2k.hdr.nz.hdr
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_px.png
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_py.png
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_pz.png
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_nx.png
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_ny.png
+        #- shaders/images/hdrihaven/carpentry_shop_02_cubemap_nz.png
       mipmap: true
       filter: linear
       index: 1
@@ -108,9 +115,6 @@ const float kYfov = 39.0 * M_PI / 180.0;
 const vec3  kCameraP = vec3(0.5, 0.5, 4.0) * 1.5;
 const vec3  kLookatP = vec3(0.0);
 
-// .hdr exposure
-const float kExposure = 2.0;
-
 const bool kUseCubemap = true;
 
 mat4 getVertexTransform(vec2 resolution) {
@@ -142,13 +146,14 @@ mat4 getVertexTransform(vec2 resolution) {
     if (kUseCubemap) {
       // flip to left-handed frame
       vec3 cube_ray_dir = vec3(1.0, 1.0, -1.0) * ray_dir;
-      vec3 color = texture(tex_environment_cube, cube_ray_dir).xyz;
+      vec3 L = texture(tex_environment_cube, cube_ray_dir).xyz;
+      vec3 color = encodeGamma(L);
       Fragment_color = vec4(color, 1.0);
       return;
     }
     vec2 uv = T_texcoordLatLng(ray_dir);
     vec3 L = texture(tex_environment, uv, 0.0).xyz;
-    vec3 color = Misc_tonemap(L, kExposure, 1.0, 1.0);
+    vec3 color = encodeGamma(L);
     Fragment_color = vec4(color, 1.0);
   }
 #endif

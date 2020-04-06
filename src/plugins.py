@@ -3,8 +3,8 @@ import OpenGL.GL as gl
 import os, ctypes, dataclasses
 import numpy as np
 from .common import ShaderError
-from .utils import \
-    pad_data, reload_rec, exec_config, exec_config_if_str, if3
+from .utils import pad_data, reload_rec, exec_config, exec_config_if_str, if3
+from . import utils_gl
 
 
 @dataclasses.dataclass
@@ -362,80 +362,22 @@ class RasterscriptPlugin(Plugin):
 class TexturePlugin(Plugin):
   def configure(self, arg):
     self.config = arg.config
-    self.file = self.config.get('file') or exec_config(self.config['file_exec'])
-    self.handle = TexturePlugin.create_image(
-        self.file, self.config.get('y_flip'))
-    TexturePlugin.configure_texture(self.handle, self.config)
+    self.setup_texture()
+    # self.file = self.config.get('file') or exec_config(self.config['file_exec'])
+    # self.handle = TexturePlugin.create_image(
+    #     self.file, self.config.get('y_flip'))
+    # TexturePlugin.configure_texture(self.handle, self.config)
 
   def cleanup(self):
     gl.glDeleteTextures(self.handle)
 
-  @staticmethod
-  def create_image(file, y_flip):
-    if file.endswith('.hdr'):
-      return TexturePlugin.create_image_hdr(file, y_flip)
-    return TexturePlugin.create_image_default(file, y_flip)
-
-  @staticmethod
-  def create_image_hdr(file, y_flip):
-    # Use my hdr loader
-    import misc.hdr.src.main_v2 as main
-    with open(file, 'rb') as f:
-      data = main.load(f)  # float32[h, w, 3]
-    if y_flip:
-      data = np.flip(data, axis=0)
-
-    # Allocate gl resource
-    handle = gl.glGenTextures(1)
-    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
-    H, W = data.shape[:2]
-    gl.glTexImage2D(
-        gl.GL_TEXTURE_2D, 0, gl.GL_RGB32F, W, H, 0,
-        gl.GL_RGB, gl.GL_FLOAT, data)
-    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-    return handle
-
-  @staticmethod
-  def create_image_default(file, y_flip):
-    qimage = QtGui.QImage(file)
-    if y_flip:
-      qimage = qimage.mirrored(False, True)  # flip y direction
-    qimage_format = qimage.format()
-    assert qimage_format != QtGui.QImage.Format_Invalid
-    if qimage_format != QtGui.QImage.Format_RGBA8888:
-      qimage = qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
-
-    # Allocate gl resource
-    handle = gl.glGenTextures(1)
-    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
-    W, H = qimage.width(), qimage.height()
-    gl.glTexImage2D(
-        gl.GL_TEXTURE_2D, 0, gl.GL_RGBA8, W, H, 0,
-        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
-    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
-    return handle
-
-  @staticmethod
-  def configure_texture(handle, config):
-    # Setup mipmap-level, filter-mode, wrap-mode
-    gl.glBindTexture(gl.GL_TEXTURE_2D, handle)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S,
-        gl.GL_REPEAT if config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T,
-        gl.GL_REPEAT if config['wrap'] == 'repeat' else gl.GL_CLAMP_TO_EDGE)
-    if config['filter'] == 'linear':
-      min_filter = gl.GL_LINEAR_MIPMAP_LINEAR if config['mipmap'] else gl.GL_LINEAR
-      mag_filter = gl.GL_LINEAR
-    else:
-      min_filter = gl.GL_NEAREST_MIPMAP_NEAREST if config['mipmap'] else gl.GL_NEAREST
-      mag_filter = gl.GL_NEAREST
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, min_filter)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, mag_filter)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BASE_LEVEL, 0)
-    gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAX_LEVEL, 10)
-    if config['mipmap']:
-      gl.glGenerateMipmap(gl.GL_TEXTURE_2D)
-    gl.glBindTexture(gl.GL_TEXTURE_2D, 0)
+  def setup_texture(self):
+    self.handle = gl.glGenTextures(1)
+    target = gl.GL_TEXTURE_2D
+    gl.glBindTexture(target, self.handle)
+    filename = self.config.get('file') or exec_config(self.config['file_exec'])
+    utils_gl.setup_texture_data(target, filename, self.config)
+    utils_gl.setup_texture_parameters(target, self.config)
 
   def on_bind_program(self, program_handle):
     location = gl.glGetUniformLocation(program_handle, self.config['name'])
@@ -466,37 +408,10 @@ class CubemapPlugin(Plugin):
     self.handle = gl.glGenTextures(1)
     target = gl.GL_TEXTURE_CUBE_MAP
     gl.glBindTexture(target, self.handle)
-    for file, sub_target in zip(self.config['files'], CubemapPlugin.SUB_TARGETS):
-      CubemapPlugin.setup_cubemap_data(file, sub_target)
-    CubemapPlugin.setup_cubemap_parameters(target, self.config)
+    for filename, sub_target in zip(self.config['files'], CubemapPlugin.SUB_TARGETS):
+      utils_gl.setup_texture_data(sub_target, filename, self.config)
+    utils_gl.setup_texture_parameters(target, self.config)
     gl.glBindTexture(target, 0)
-
-  # TODO: refactor with TexturePlugin
-  @staticmethod
-  def setup_cubemap_data(file, sub_target):
-    qimage = QtGui.QImage(file)
-    qimage_format = qimage.format()
-    assert qimage_format != QtGui.QImage.Format_Invalid
-    if qimage_format != QtGui.QImage.Format_RGBA8888:
-      qimage = qimage.convertToFormat(QtGui.QImage.Format_RGBA8888)
-    W, H = qimage.width(), qimage.height()
-    gl.glTexImage2D(
-        sub_target, 0, gl.GL_RGBA8, W, H, 0,
-        gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, qimage.constBits())
-
-  @staticmethod
-  def setup_cubemap_parameters(target, config):
-    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_EDGE)
-    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_EDGE)
-    gl.glTexParameteri(target, gl.GL_TEXTURE_WRAP_R, gl.GL_CLAMP_TO_EDGE)
-    gl.glTexParameteri(target, gl.GL_TEXTURE_MIN_FILTER,
-        if3(config.get('filter') == 'linear', gl.GL_LINEAR_MIPMAP_LINEAR, gl.GL_NEAREST))
-    gl.glTexParameteri(target, gl.GL_TEXTURE_MAG_FILTER,
-        if3(config.get('filter') == 'linear', gl.GL_LINEAR, gl.GL_NEAREST))
-    if config.get('mipmap'):
-      gl.glTexParameteri(target, gl.GL_TEXTURE_BASE_LEVEL, 0)
-      gl.glTexParameteri(target, gl.GL_TEXTURE_MAX_LEVEL, 10)
-      gl.glGenerateMipmap(target)
 
   def on_bind_program(self, program_handle):
     location = gl.glGetUniformLocation(program_handle, self.config['name'])
