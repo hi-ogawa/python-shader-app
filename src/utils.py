@@ -1,7 +1,7 @@
 #
 # Miscellaneous helper
 #
-import sys, traceback, signal, os
+import sys, traceback, signal, os, re
 from PySide2 import QtCore
 import numpy as np
 
@@ -110,8 +110,48 @@ class PreprocessIncludeWatcher(QtCore.QObject):
     print(f"[PreprocessIncludeWatcher] watching ( {', '.join(self.qt_watcher.files())} )")
 
 
+def preprocess_source_env(src):
+  # %%ENV:<name>:<default>%%
+  ms = re.finditer('%%ENV:(.*?):(.*?)%%', src)
+  result = src
+  for m in list(ms)[::-1]: # replace from the tail of the source
+    value = os.environ.get(m.group(1)) or m.group(2)
+    result = result[:m.start()] + value + result[m.end():]
+  return result
+
+
+def preprocess_source_eval(src):
+  # %%EVAL:<expr>%%
+  ms = re.finditer('%%EVAL:(.*?)%%', src)
+  result = src
+  eval_ns = dict(os=os)
+  for m in list(ms)[::-1]: # replace from the tail of the source
+    value = str(eval(m.group(1), eval_ns))
+    result = result[:m.start()] + value + result[m.end():]
+  return result
+
+
+def preprocess_source_exec(src):
+  # %%EXEC:<statements>%%
+  import textwrap
+  ms = re.finditer('%%EXEC:(.*?)%%', src, re.DOTALL)
+  result = src
+  for m in list(ms)[::-1]: # replace from the tail of the source
+    value = str(exec_config(textwrap.dedent(m.group(1))))
+    result = result[:m.start()] + value + result[m.end():]
+  return result
+
+
+def preprocess_source(src): # -> str
+  src = preprocess_source_exec(src)
+  src = preprocess_source_eval(src)
+  src = preprocess_source_env(src)
+  return src
+
+
 # src : str -> config : dict
 def parse_shader_config(src):
+  # TODO: this is super out-dated
   """
   Shader configuration example:
 

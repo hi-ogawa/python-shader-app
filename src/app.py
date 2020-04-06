@@ -5,7 +5,7 @@ import os, array, ctypes, time, collections
 from .utils import \
     exit_app_on_exception, setup_interrupt_handler, setup_qt_message_handler, \
     preprocess_include, PreprocessIncludeWatcher, parse_shader_config, \
-    handle_OpenGL_debug_message
+    handle_OpenGL_debug_message, preprocess_source
 from .plugins import \
     PluginConfigureArg, \
     SsboPlugin, RasterPlugin, SsboscriptPlugin, \
@@ -203,6 +203,7 @@ class MultiPassRenderer():
     self.plugins = []
 
   def configure(self, src, W, H):
+    src = preprocess_source(src)
     self.config = parse_shader_config(src)
     if self.config is None:
       print(f"[MultiPassRenderer] Configuration not found. Use default configuration.")

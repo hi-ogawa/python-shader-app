@@ -1,16 +1,35 @@
-import unittest, tempfile, shutil, contextlib, os
-from .utils import preprocess_include
-
-@contextlib.contextmanager
-def make_tmpdir():
-  tmpdir = tempfile.mkdtemp()
-  try:
-    yield tmpdir
-  finally:
-    shutil.rmtree(tmpdir)
+import unittest, os, tempfile
+from .utils import preprocess_include, preprocess_source
 
 
 class TestUtils(unittest.TestCase):
+  def test_misc00(self):
+    example = """\
+a
+%%EVAL: 1 + 1 %% b
+  c %%EVAL: 2**10 %% %%EVAL: 4 % 3 %%
+      %%EVAL: 'abc' %%
+  %%EXEC:
+    RESULT = 0
+    for i in range(8):
+      RESULT += 2
+  %%
+d
+%%EVAL: None %% e
+"""
+    expected = """\
+a
+2 b
+  c 1024 1
+      abc
+  16
+d
+None e
+"""
+    result = preprocess_source(example)
+    self.assertEqual(result, expected)
+
+
   def test_preprocess_include_ex1(self):
     includer = """\
 // includer start
@@ -67,7 +86,7 @@ void mainImage(out vec4 frag_color, vec2 frag_coord) {
 }
 """
 
-    with make_tmpdir() as tmpdir:
+    with tempfile.TemporaryDirectory() as tmpdir:
       includer_file = os.path.join(tmpdir, "includer.glsl")
       includee1_file = os.path.join(tmpdir, "includee1.glsl")
       includee2_file = os.path.join(tmpdir, "includee2.glsl")

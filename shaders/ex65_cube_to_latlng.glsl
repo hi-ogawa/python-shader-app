@@ -1,6 +1,9 @@
 //
 // Cube format to lat-lng format
 //
+// Usage:
+//   H=512 INFILE=shaders/images/hdrihaven/aft_lounge_2k.hdr python -m src.app --width 1 --height 1 shaders/ex65_cube_to_latlng.glsl --offscreen /dev/zero
+//
 
 /*
 %%config-start%%
@@ -21,39 +24,28 @@ plugins:
     params:
       binding: 0
       type: size
-      size: "4 * 4 * 2**10 * 2**11"  # float * 4 * h * w
+      size: "4 * 4 * %%ENV:H:512%% ** 2 * 2"  # float * 4 * h * (h * 2)
       on_cleanup: |
         import os
         import numpy as np
         import misc.hdr.src.main as hdr
-        rgb = np.frombuffer(DATA, np.float32).reshape((2**10, 2**11, 4))[..., :3]
-        outfile = os.environ.get('OUTFILE')
-        if outfile:
-          hdr.write_file(outfile, rgb)
+        w = %%ENV:H:512%%
+        rgb = np.frombuffer(DATA, np.float32).reshape(
+            (w, w * 2, 4))[..., :3]
+        infile = "%%ENV:INFILE:%%"
+        if len(infile) != 0:
+          hdr.write_file(infile + '.latlng.hdr', rgb)
 
   # [ Environment texture ]
   - type: cubemap
     params:
       name: tex_environment_cube
       files:
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.px.hdr
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.py.hdr
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.pz.hdr
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.nx.hdr
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.ny.hdr
-        - shaders/images/hdrihaven/carpentry_shop_02_2k.hdr.nz.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.px.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.py.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.pz.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.nx.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.ny.hdr
-        #- shaders/images/hdrihaven/aft_lounge_2k.hdr.nz.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.px.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.py.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.pz.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.nx.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.ny.hdr
-        #- shaders/images/pauldebevec/galileo_cross.hdr.nz.hdr
+        %%EXEC:
+          infile = os.environ.get('INFILE') or 'shaders/images/hdrihaven/carpentry_shop_02_2k.hdr'
+          names = ['px', 'py', 'pz', 'nx', 'ny', 'nz']
+          RESULT = [ f"{infile}.{name}.hdr" for name in names ]
+        %%
       mipmap: false
       filter: linear
       index: 0
@@ -68,7 +60,7 @@ plugins:
   - type: uniform
     params:
       name: U_scale
-      default: 0.25
+      default: 0.5
       min: 0.1
       max: 2.0
 
@@ -77,7 +69,7 @@ programs:
   - name: mainCompute
     type: compute
     local_size: [32, 32, 1]
-    global_size: [2048, 1024, 1]
+    global_size: "[%%ENV:H:512%% * 2, %%ENV:H:512%%, 1]"
     samplers: []
 
 offscreen_option:
@@ -99,7 +91,7 @@ layout (std140, binding = 0) buffer Ssbo0 {
 #include "utils/transform_v0.glsl"
 #include "utils/misc_v0.glsl"
 
-const ivec3 kSize = ivec3(2048, 1024, 1);
+const ivec3 kSize = ivec3(%%ENV:H:512%% * 2, %%ENV:H:512%%, 1);
 const float kDeltaTheta = M_PI / kSize.y;
 const float kDeltaPhi = 2.0 * M_PI / kSize.x;
 
@@ -149,7 +141,7 @@ int toDataIndex(ivec3 p, ivec3 size) {
   uniform vec3 iResolution;
   uniform samplerCube tex_environment_cube;
   uniform float U_exposure = 0.0;
-  uniform float U_scale = 0.4;
+  uniform float U_scale = 0.5;
   layout (location = 0) out vec4 Fragment_color;
 
   void main() {
