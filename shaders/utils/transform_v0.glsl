@@ -125,3 +125,47 @@ vec2 T_texcoordLatLng(vec3 dir) {
       1.0 - (mod(phi, 2.0 * M_PI) / (2.0 * M_PI)),
       1.0 - theta / M_PI);
 }
+
+vec2 T_polarToCartesian(vec2 p) {
+  return vec2(
+    p.x * cos(p.y),
+    p.x * sin(p.y));
+}
+
+// (Almost everywhere) constant Jacobian 2d-isotopy between square and disk by Shirly and Chiu
+vec2 T_squareToDisk_polar(vec2 u) {
+  // [0, 1]^2 -> [-1, 1]^2
+  u = 2.0 * u - 1.0;
+
+  // Flip around to the 1/8 part of square { (x, y) | x in [0, 1], y in [0, x] }
+  vec2 sign_u = sign(u);
+  vec2 abs_u = abs(u);
+  bool swap_xy = abs_u.x < abs_u.y;
+  vec2 eighth_u = !swap_xy ? abs_u : vec2(abs_u.y, abs_u.x);
+
+  float radius = eighth_u.x;
+  float phi = M_PI / 4.0 * eighth_u.y / eighth_u.x; // in [0, pi/4]
+
+  // Flip back to the original part
+  phi = !swap_xy ? phi : (M_PI / 2.0 - phi);       // in [0, pi/2]
+  phi = 0 < sign_u.x ? phi : (M_PI - phi);         // in [0, pi]
+  phi = 0 < sign_u.y ? phi : (2.0 * M_PI - phi);   // in [0, 2pi]
+
+  return vec2(radius, phi);
+}
+
+vec2 T_squareToDisk(vec2 u) {
+  return T_polarToCartesian(T_squareToDisk_polar(u));
+}
+
+// Extract 2d uniform distribution based on T_squareToDisk_polar
+vec2 T_squareToDisk_polarUniform(vec2 u) {
+  // Map to uniform on disk (but its polar coord [0, 1] x [0, 2pi] is not uniform)
+  vec2 rp = T_squareToDisk_polar(u);
+  float radius = rp[0];  // P(r) = 2r (i.e. F(r) = r^2)
+  float phi = rp[1];     // P(phi) : uniform
+
+  // Map to uniform on [0, 1]
+  float u1 = radius * radius;
+  return vec2(u1, phi / (2.0 * M_PI));
+}

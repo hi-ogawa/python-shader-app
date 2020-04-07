@@ -656,7 +656,7 @@ fvec2 map_Square_Disk_radius_phi(fvec2 u) {
   float phi = M_PI / 4.0 * eighth_u[1] / eighth_u[0]; // in [0, pi/4]
 
   // Flip back to the original part
-  phi = !swap_xy ? phi : (M_PI / 4.0 - phi);        // in [0, pi/2]
+  phi = !swap_xy ? phi : (M_PI / 2.0 - phi);        // in [0, pi/2]
   phi = 0 < sign_u[0] ? phi : (M_PI - phi);         // in [0, pi]
   phi = 0 < sign_u[1] ? phi : (2.0 * M_PI - phi);   // in [0, 2pi]
 
