@@ -36,6 +36,23 @@ mat3 T_scale3(vec3 v) {
     0.0, 0.0, v.z);
 }
 
+mat3 T_translate2(vec2 v) {
+  return mat3(
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    vec3(v, 1.0));
+}
+
+mat2 T_scale2(vec2 v) {
+  return mat2(
+    v.x, 0.0,
+    0.0, v.y);
+}
+
+vec2 T_apply2(mat3 xform, vec2 v) {
+  return vec2(xform * vec3(v, 1.0));
+}
+
 mat4 T_lookAt(vec3 p, vec3 lookat_p, vec3 up) {
   vec3 z = normalize(p - lookat_p);
   vec3 x = - normalize(cross(z, up));

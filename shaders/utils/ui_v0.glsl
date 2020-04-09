@@ -114,3 +114,38 @@ bool UI_handleCameraInteraction(
 
   return clicked || moved;
 }
+
+
+bool UI_interactInvViewXform(
+    vec2 resolution, vec4 mouse, uint key_modifiers,
+    inout bool state_mouse_down,
+    inout vec2 state_mouse_down_p,
+    inout vec2 state_mouse_click_p,
+    inout mat3 state_inv_view_xform) {
+  bool key_shift   = bool(key_modifiers & 0x02000000u);
+  bool key_control = bool(key_modifiers & 0x04000000u);
+  bool key_alt     = bool(key_modifiers & 0x08000000u);
+
+  bool clicked, moved, released;
+  vec2 mouse_delta;
+  UI_getMouseDetail(
+      mouse, /*inout*/ state_mouse_down, state_mouse_down_p, state_mouse_click_p,
+      /*out*/ clicked, moved, released, mouse_delta);
+
+  if (mouse_delta.x != 0.0 || mouse_delta.y != 0.0) {
+    if (key_control) {
+      // "p"-preserving scale
+      vec2 p = state_mouse_click_p;
+      float s = 1.0 - mouse_delta.y / 64.0;
+      mat3 xform = T_translate2(+ p) * mat3(T_scale2(vec2(s, s))) * T_translate2(- p);
+      state_inv_view_xform = state_inv_view_xform * xform;
+    }
+
+    if (key_shift) {
+      vec2 t = - mouse_delta;
+      mat3 xform = T_translate2(t);
+      state_inv_view_xform = state_inv_view_xform * xform;
+    }
+  }
+  return clicked || moved;
+}

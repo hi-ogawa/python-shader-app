@@ -53,12 +53,19 @@ plugins:
       default: 0
       min: -4
       max: 4
-  - type: uniform
+
+  # [ Image viewer interaction ]
+  - type: ssbo
     params:
-      name: U_scale
-      default: 0.5
-      min: 0.1
-      max: 2.0
+      binding: 1
+      type: size
+      size: 1024
+  - type: raster
+    params:
+      primitive: GL_POINTS
+      count: 1
+      vertex_shader: mainVertexUI
+      fragment_shader: mainFragmentDiscard
 
 samplers: []
 programs:
@@ -79,6 +86,14 @@ layout (std140, binding = 0) buffer Ssbo0 {
   vec4 Ssbo_data[];
 };
 
+// ssbo: ui state
+layout (std140, binding = 1) buffer Ssbo1 {
+  bool Ssbo_mouse_down;
+  vec2 Ssbo_mouse_down_p;
+  vec2 Ssbo_mouse_click_p;
+  mat3 Ssbo_inv_view_xform;
+};
+
 //
 // Utilities
 //
@@ -88,6 +103,7 @@ layout (std140, binding = 0) buffer Ssbo0 {
 #include "utils/misc_v0.glsl"
 #include "utils/hash_v0.glsl"
 #include "utils/sampling_v0.glsl"
+#include "utils/ui_v0.glsl"
 
 //
 // Parameters
@@ -96,7 +112,7 @@ layout (std140, binding = 0) buffer Ssbo0 {
 const ivec3 kSize = ivec3(%%ENV:H:512%% * 2, %%ENV:H:512%%, 1);
 const float kDeltaTheta = M_PI / kSize.y;
 const float kDeltaPhi = 2.0 * M_PI / kSize.x;
-const int kNumSamplesPerFrame = 1;
+const int kNumSamplesPerFrame = 16;
 
 int toDataIndex(ivec3 p, ivec3 size) {
   return size.y * size.x * p.z + size.x * p.y + p.x;
@@ -119,17 +135,18 @@ int toDataIndex(ivec3 p, ivec3 size) {
     vec3 I = vec3(0.0);
     for (int i = 0; i < kNumSamplesPerFrame; i++) {
       // Monte carlo evaluation of \int_{w} Li(w) (n.w)
-      vec2 u = hash42(vec4(n, hash21(vec2(i, iFrame))));
-      vec3 p, wi;
-      float pdf;
+
+      // [Halton sequence]
+      vec2 u = Misc_Halton2D(iFrame + 1);
+      u = mod(u + hash32(n) * 0.01, 1.0); // with slight pixel-wise random offset
 
       // (n.w) distribution
+      vec3 p, wi;
+      float pdf;
       Sampling_hemisphereCosine(u, /*out*/ p, pdf);
 
-      // uniform distribution
-      // Sampling_sphereUniform(u, /*out*/ p, pdf);
-      // p.z = abs(p.z);
-      // pdf *= 2.0;
+      // [ or use uniform distribution]
+      // Sampling_hemisphereUniform(u, /*out*/ p, pdf);
 
       I += Li(T_zframe(n) * p) * p.z / pdf;
     }
@@ -177,13 +194,11 @@ int toDataIndex(ivec3 p, ivec3 size) {
   uniform vec3 iResolution;
   uniform samplerCube tex_environment_cube;
   uniform float U_exposure = 0.0;
-  uniform float U_scale = 0.5;
   layout (location = 0) out vec4 Fragment_color;
 
   void main() {
-    vec2 frag_coord = gl_FragCoord.xy;
+    vec2 frag_coord = T_apply2(Ssbo_inv_view_xform, gl_FragCoord.xy);
     ivec3 p = ivec3(frag_coord.x, iResolution.y - frag_coord.y, 0.0);
-    p.xy = ivec2(vec2(p.xy) / U_scale);
 
     vec3 L = Ssbo_data[toDataIndex(p, kSize)].xyz;
     L *= pow(2.0, U_exposure);
@@ -191,5 +206,27 @@ int toDataIndex(ivec3 p, ivec3 size) {
     vec3 color = encodeGamma(L);
     if (!all(lessThan(p, kSize))) { color *= 0.0; }
     Fragment_color = vec4(color, 1.0);
+  }
+#endif
+
+
+#ifdef COMPILE_mainVertexUI
+  uniform vec3 iResolution;
+  uniform vec4 iMouse;
+  uniform uint iKeyModifiers;
+  uniform int iFrame;
+
+  void main() {
+    if (iFrame == 0) { Ssbo_inv_view_xform = mat3(1.0); }
+
+    UI_interactInvViewXform(iResolution.xy, iMouse, iKeyModifiers,
+        Ssbo_mouse_down, Ssbo_mouse_down_p, Ssbo_mouse_click_p, Ssbo_inv_view_xform);
+  }
+#endif
+
+#ifdef COMPILE_mainFragmentDiscard
+  layout (location = 0) out vec4 Fragment_color;
+  void main() {
+    discard;
   }
 #endif

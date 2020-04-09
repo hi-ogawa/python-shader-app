@@ -58,6 +58,19 @@ plugins:
       min: -2
       max: 5
 
+  # [ Image viewer interaction ]
+  - type: ssbo
+    params:
+      binding: 1
+      type: size
+      size: 1024
+  - type: raster
+    params:
+      primitive: GL_POINTS
+      count: 1
+      vertex_shader: mainVertexUI
+      fragment_shader: mainFragmentDiscard
+
 samplers: []
 programs:
   - name: mainCompute
@@ -72,9 +85,17 @@ offscreen_option:
 %%config-end%%
 */
 
-// ssbo definition
+// ssbo: cube map data buffer
 layout (std140, binding = 0) buffer Ssbo0 {
   vec4 Ssbo_data[];
+};
+
+// ssbo: ui state
+layout (std140, binding = 1) buffer Ssbo1 {
+  bool Ssbo_mouse_down;
+  vec2 Ssbo_mouse_down_p;
+  vec2 Ssbo_mouse_click_p;
+  mat3 Ssbo_inv_view_xform;
 };
 
 const ivec3 kSize = ivec3(512, 512, 6);
@@ -86,6 +107,7 @@ const ivec3 kSize = ivec3(512, 512, 6);
 #include "utils/math_v0.glsl"
 #include "utils/transform_v0.glsl"
 #include "utils/misc_v0.glsl"
+#include "utils/ui_v0.glsl"
 
 
 int toDataIndex(ivec3 p, ivec3 size) {
@@ -146,7 +168,7 @@ int toDataIndex(ivec3 p, ivec3 size) {
   layout (location = 0) out vec4 Fragment_color;
 
   void main() {
-    vec2 frag_coord = gl_FragCoord.xy;
+    vec2 frag_coord = T_apply2(Ssbo_inv_view_xform, gl_FragCoord.xy);
     int mode = int(U_index);
     ivec3 p;
 
@@ -198,5 +220,27 @@ int toDataIndex(ivec3 p, ivec3 size) {
       color *= 0.0;
     }
     Fragment_color = vec4(color, 1.0);
+  }
+#endif
+
+
+#ifdef COMPILE_mainVertexUI
+  uniform vec3 iResolution;
+  uniform vec4 iMouse;
+  uniform uint iKeyModifiers;
+  uniform int iFrame;
+
+  void main() {
+    if (iFrame == 0) { Ssbo_inv_view_xform = mat3(1.0); }
+
+    UI_interactInvViewXform(iResolution.xy, iMouse, iKeyModifiers,
+        Ssbo_mouse_down, Ssbo_mouse_down_p, Ssbo_mouse_click_p, Ssbo_inv_view_xform);
+  }
+#endif
+
+#ifdef COMPILE_mainFragmentDiscard
+  layout (location = 0) out vec4 Fragment_color;
+  void main() {
+    discard;
   }
 #endif
