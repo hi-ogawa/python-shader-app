@@ -191,7 +191,7 @@ mat3 getRayTransform(vec2 resolution) {
   vec3 Li_IBL_microfacetSpecular_monteCarlo(
       vec3 p, vec3 n, vec3 camera_p,
       vec3 color, float metalness, float roughness) {
-    const int kNumSamples = 32;
+    const int kNumSamples = 16;
     vec3 L = vec3(0.0);
 
     // Setup brdf related parameters
@@ -228,7 +228,7 @@ mat3 getRayTransform(vec2 resolution) {
       vec3 F = Brdf_F_Schlick(wh_o_wo, F0);
       float J = 4.0 * wh_o_wo;
 
-      L += J * F * D * Vis * Li_env * n_o_wi / pdf;
+      L += J * F * D * Vis * Li_env * clamp0(n_o_wi) / pdf;
     }
     L /= float(kNumSamples);
     return L;

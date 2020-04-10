@@ -363,10 +363,6 @@ class TexturePlugin(Plugin):
   def configure(self, arg):
     self.config = arg.config
     self.setup_texture()
-    # self.file = self.config.get('file') or exec_config(self.config['file_exec'])
-    # self.handle = TexturePlugin.create_image(
-    #     self.file, self.config.get('y_flip'))
-    # TexturePlugin.configure_texture(self.handle, self.config)
 
   def cleanup(self):
     gl.glDeleteTextures(self.handle)
