@@ -169,3 +169,73 @@ def quad():
   p_vs = np.array([[-1, -1], [1, -1], [1, 1], [-1, 1]] , np.float32)
   faces = np.array([[0, 1, 2], [0, 2, 3]], np.uint32)
   return p_vs, faces
+
+
+# 2d uniform grid plane on [0, 1]^2 by n * m quads
+def grid(n, m):
+  # @return
+  #   p_vs  : float32[(n + 1) * (m + 1), 2]  (in [0, 1]^2)
+  #   faces : uint32[n * m, 4]
+  x = np.linspace(0, 1, num=(n + 1), dtype=np.float32)
+  y = np.linspace(0, 1, num=(m + 1), dtype=np.float32)
+  x, y = np.meshgrid(x, y)
+  p_vs = np.stack([x, y], axis=-1).reshape((-1, 2))
+
+  i = np.arange(n, dtype=np.uint32)
+  j = np.arange(m, dtype=np.uint32)
+  i, j = np.meshgrid(i, j)
+  v0 = (i + 0) + (n + 1) * (j + 0)
+  v1 = (i + 1) + (n + 1) * (j + 0)
+  v2 = (i + 1) + (n + 1) * (j + 1)
+  v3 = (i + 0) + (n + 1) * (j + 1)
+  faces = np.stack([v0, v1, v2, v3], axis=-1).reshape((-1, 4))
+
+  return p_vs, faces
+
+
+# 2d uniform grid plane on periodic domain [0, 1)^2 (thus homeomorphic to torus)
+def grid_torus(n, m):
+  # @return
+  #   p_vs  : float32[n * m, 2]  (in [0, 1)^2)
+  #   faces : uint32[n * m, 4]
+  x = np.linspace(0, 1, num=n, endpoint=False, dtype=np.float32)
+  y = np.linspace(0, 1, num=m, endpoint=False, dtype=np.float32)
+  x, y = np.meshgrid(x, y)
+  p_vs = np.stack([x, y], axis=-1).reshape((-1, 2))
+
+  i = np.arange(n, dtype=np.uint32)
+  j = np.arange(m, dtype=np.uint32)
+  i, j = np.meshgrid(i, j)
+  v0 = ((i + 0) % n) + n * ((j + 0) % m)
+  v1 = ((i + 1) % n) + n * ((j + 0) % m)
+  v2 = ((i + 1) % n) + n * ((j + 1) % m)
+  v3 = ((i + 0) % n) + n * ((j + 1) % m)
+  faces = np.stack([v0, v1, v2, v3], axis=-1).reshape((-1, 4))
+
+  return p_vs, faces
+
+
+def torus(r0=1, r1=0.5, n=2**7, m=2**5): # -> (float32[?, 3], uint32[?, 4])
+  uv, faces = grid_torus(n, m)
+  uv *= 2.0 * np.pi
+  u, v = uv[:, 0], uv[:, 1]  # float32[N]
+  x = np.cos(u) * (r0 + r1 * np.cos(v))
+  y = np.sin(u) * (r0 + r1 * np.cos(v))
+  z =                   r1 * np.sin(v)
+  p_vs = np.stack([x, y, z], axis=-1)  # float32[N, 3]
+  return p_vs, faces
+
+
+def circle(r=1, n=2**7): # -> float32[n, 2]
+  u = 2.0 * np.pi * np.linspace(0, 1, endpoint=False, num=n, dtype=np.float32)
+  x = np.cos(u)
+  y = np.sin(u)
+  return np.stack([x, y], axis=-1)
+
+
+def torus_knot(p, q, r0=2.0, r1=1, n=2**7): # -> float32[n, 3]
+  u = 2.0 * np.pi * np.linspace(0, 1, endpoint=False, num=n, dtype=np.float32)
+  x = np.cos(q * u) * (r0 + r1 * np.cos(p * u))
+  y = np.sin(q * u) * (r0 + r1 * np.cos(p * u))
+  z =                       r1 * np.sin(p * u)
+  return np.stack([x, y, z], axis=-1)

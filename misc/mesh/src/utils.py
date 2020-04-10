@@ -1,7 +1,7 @@
 import numpy as np;  Np = np.array
 from .numba_optim import \
     compute_vertex_normals, compute_smooth_vertex_normals
-from . import subdivision
+from . import subdivision, data
 
 
 # structure-of-array to array-of-structure
@@ -48,12 +48,15 @@ def compute_face_normals(p_vs, faces):
 def finalize(p_vs, faces, smooth):
   assert p_vs.dtype == np.float32
   assert faces.dtype == np.uint32
+  assert faces.shape[1] in [3, 4]
   if smooth:
     n_vs = compute_smooth_vertex_normals(p_vs, faces)
   else:
     p_vs, faces = uniqify_vertices(p_vs, faces)
     n_vs = compute_vertex_normals(p_vs, faces)
   verts = soa_to_aos(p_vs, n_vs)
+  if faces.shape[1] == 4:
+    faces = quads_to_tris(faces)
   return verts, faces
 
 
@@ -136,3 +139,76 @@ def geodesic_subdiv(p_vs, faces):
     new_faces[4 * f + 3] = [V + e2,     v0, V + e0]
 
   return new_p_vs, new_faces
+
+
+def normalize(v): # float[..., d] -> float[...]
+  return v / np.linalg.norm(v, axis=-1, keepdims=True)
+
+
+# Pick arbitrary vector orthogonal to n
+def orthogonal(n): # float[3] -> float[3]
+  if abs(n[0]) < 0.9: v = [1, 0, 0]
+  else:               v = [0, 1, 0]
+  return normalize(np.cross(n, v))
+
+
+def project_orthogonal(v, n): # (float[..., 3], float[..., 3]) -> float[..., 3]
+  # ufunc version of "v - np.dot(v, n) * n"
+  return v - np.sum(v * n, axis=-1, keepdims=True) * n
+
+
+def extrude_line(ps, m=2**5, r=0.5, closed=True): # float[k, 3] -> (float[k * m, 3], uint[?, 4])
+  assert ps.shape[1] == 3
+  assert closed  # TODO: non closed case (implement data.grid_cylinder)
+  k = len(ps)
+
+  # tangents by finite difference
+  tangents = normalize(np.roll(ps, -1, axis=0) - np.roll(ps, 1, axis=0))
+
+  # normals
+  # TODO: this approach breakdowns for torus knot at the start/end
+  # TODO: is this construction related to "parallel transport"?
+  normals = np.empty((k, 3), ps.dtype)
+  normals[0] = orthogonal(tangents[0])  # arbitrary pick first normal
+  for i in range(1, k):
+    # other follows by orthogonal project previous normal wrt. tangent
+    normals[i] = normalize(project_orthogonal(normals[i - 1], tangents[i]))
+
+  # frame by tangent/normal/normal2
+  normals2 = np.cross(normals, tangents)
+
+  # construct faces based on grid topology
+  uv, faces = data.grid_torus(k, m)
+  u = np.uint32(k * uv[:, 0])    # float[?]     (in {0, 1, .. k - 1})
+  v = 2 * np.pi * uv[:, [1]]     # float[?, 1]  (in [0, 2pi))
+  p  = ps[u]                     # float[?, 3]
+  n1 = normals[u]                # float[?, 3]
+  n2 = normals2[u]               # float[?, 3]
+  p_vs = p + r * n1 * np.cos(v) + r * n2 * np.sin(v)
+  return p_vs, faces
+
+
+def extrude_line_with_normal_hint(ps, normal_hints, m=2**5, r=0.5, closed=True):
+  # (float[k, 3], float[k, 3]) -> (float[k * m, 3], uint[?, 4])
+  assert ps.shape[1] == 3
+  assert closed  # TODO: non closed case (implement data.grid_cylinder)
+  k = len(ps)
+
+  # tangents by finite difference
+  tangents = normalize(np.roll(ps, -1, axis=0) - np.roll(ps, 1, axis=0))
+
+  # normal by projecting "normal hint" to orthogonal space of tangent
+  normals = normalize(project_orthogonal(normal_hints, tangents))
+
+  # frame by tangent/normal/normal2
+  normals2 = np.cross(normals, tangents)
+
+  # construct faces based on grid topology
+  uv, faces = data.grid_torus(k, m)
+  u = np.uint32(k * uv[:, 0])    # float[?]     (in {0, 1, .. k - 1})
+  v = 2 * np.pi * uv[:, [1]]     # float[?, 1]  (in [0, 2pi))
+  p  = ps[u]                     # float[?, 3]
+  n1 = normals[u]                # float[?, 3]
+  n2 = normals2[u]               # float[?, 3]
+  p_vs = p + r * n1 * np.cos(v) + r * n2 * np.sin(v)
+  return p_vs, faces

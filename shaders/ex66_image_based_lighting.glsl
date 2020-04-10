@@ -15,7 +15,12 @@ plugins:
   # [ Sphere ]
   - type: rasterscript
     params:
-      exec: from misc.mesh.src.ex02 import *; RESULT = list(map(bytes, icosphere()))
+      exec: |
+        from misc.mesh.src import utils, data, ex02
+        #RESULT = list(map(bytes, ex02.icosphere(smooth=True)))
+        #RESULT = list(map(bytes, utils.finalize(*data.torus(), smooth=True)))
+        #RESULT = list(map(bytes, utils.finalize(*ex02.torus_by_extruding_circle(), smooth=False)))
+        RESULT = list(map(bytes, utils.finalize(*ex02.torus_knot_extrude(p=3, q=2, r0=1.0, r1=0.5, r2=0.45), smooth=True)))
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST, GL_CULL_FACE]
       vertex_shader: mainVertexShading
@@ -70,18 +75,18 @@ plugins:
       index: 0
 
   # [ Variables ]
-  - type: uniform
-    params:
-      name: U_exposure
-      default: 0
-      min: -4
-      max: +4
-  - type: uniform
-    params:
-      name: U_exposure_diffuse
-      default: -2
-      min: -4
-      max: +4
+  #- type: uniform
+  #  params:
+  #    name: U_exposure
+  #    default: 0
+  #    min: -4
+  #    max: +4
+  #- type: uniform
+  #  params:
+  #    name: U_exposure_diffuse
+  #    default: -1
+  #    min: -4
+  #    max: +4
   - type: uniform
     params:
       name: U_metalness
@@ -91,9 +96,15 @@ plugins:
   - type: uniform
     params:
       name: U_roughness
-      default: 0.2
+      default: 0.1
       min: 0
       max: 1
+  #- type: uniform
+  #  params:
+  #    name: U_color_saturation
+  #    default: 1.0
+  #    min: 0
+  #    max: 1
 
 samplers: []
 programs: []
@@ -131,7 +142,7 @@ layout (std140, binding = 0) buffer Ssbo0 {
 
 // camera
 const float kYfov = 39.0 * M_PI / 180.0;
-const vec3  kCameraP = vec3(0.8, 2.5, 4.0) * 2.0;
+const vec3  kCameraP = vec3(0.8, 2.5, 4.0) * 1.5;
 const vec3  kLookatP = vec3(0.0);
 
 mat4 getVertexTransform(vec2 resolution) {
@@ -157,7 +168,7 @@ mat3 getRayTransform(vec2 resolution) {
   out vec3 Interp_normal;
 
   void main() {
-    vec3 p = 1.5 * Vertex_position;
+    vec3 p = Vertex_position;
     Interp_position = p;
     Interp_normal = Vertex_normal;
 
@@ -173,6 +184,7 @@ mat3 getRayTransform(vec2 resolution) {
   uniform float U_roughness = 0.05;
   uniform float U_metalness = 0.1;
   uniform float U_exposure_diffuse = -1.0;
+  uniform float U_color_saturation = 1.0;
   layout (location = 0) out vec4 Fragment_color;
 
   vec3 Li_IBL_microfacetSpecular_monteCarlo(
@@ -195,7 +207,8 @@ mat3 getRayTransform(vec2 resolution) {
       //   therefore, we put Jacobian "4.0 * wh_o_wo"
       vec3 n_wh;
       float pdf;
-      vec2 u = hash42(vec4(p, float(i)));
+      vec2 u = Misc_halton2D(i);
+      u = mod(u + hash32(p) * 0.05, 1.0); // with slight pixel-wise random offset
       Brdf_GGX_sampleCosineD(u, a, n_wh, pdf);
 
       vec3 wh = T_zframe(n) * n_wh;
@@ -296,7 +309,7 @@ mat3 getRayTransform(vec2 resolution) {
     vec3 camera_p = vec3(Ssbo_camera_xform[3]);
 
     // Setup material
-    vec3 surface_color = vec3(1.0);
+    vec3 surface_color = mix(vec3(1.0), vec3(1.0, 0.0, 0.0), U_color_saturation);
     float roughness = U_roughness;
     float metalness = U_metalness;
 
