@@ -1,8 +1,12 @@
 //
-// Irradiance map generator (Monte Carlo)
+// Microface specular environment map generator
 //
 // Usage:
-//   NUM_SAMPLES=1024 H=256 INFILE=shaders/images/hdrihaven/fireplace_1k.hdr python -m src.app shaders/ex63_irradiance_map_generator_monte_carlo.glsl --offscreen /dev/zero
+//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=512 ROUGHNESS=0.2 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=256 ROUGHNESS=0.4 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=128 ROUGHNESS=0.6 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=64  ROUGHNESS=0.8 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=32  ROUGHNESS=1.0 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
 //
 
 /*
@@ -18,17 +22,18 @@ plugins:
         import os
         import numpy as np
         import misc.hdr.src.main as hdr
-        w = %%ENV:H:512%%
-        rgb = np.frombuffer(DATA, np.float32).reshape((w, w * 2, 4))[..., :3]
+        h = %%ENV:H:512%%
+        rgb = np.frombuffer(DATA, np.float32).reshape((h, h * 2, 4))[..., :3]
         infile = "%%ENV:INFILE:%%"
+        infix = "ex68-%%ENV:ROUGHNESS:0.2%%-%%ENV:H:512%%"
         if len(infile) != 0:
-          hdr.write_file(infile + '.irr-montecarlo.hdr', rgb)
+          hdr.write_file(f"{infile}.{infix}.hdr", rgb)
 
   # [ Environment texture ]
   - type: texture
     params:
       name: tex_environment
-      file: %%ENV:INFILE:shaders/images/hdrihaven/fireplace_1k.hdr%%
+      file: %%ENV:INFILE:shaders/images/hdrihaven/lythwood_lounge_2k.hdr%%
       mipmap: false
       wrap: repeat
       filter: linear
@@ -50,7 +55,7 @@ plugins:
   - type: uniform
     params:
       name: U_exposure
-      default: 0
+      default: -2
       min: -4
       max: 4
 
@@ -77,7 +82,7 @@ programs:
 
 offscreen_option:
   fps: 60
-  num_frames: %%ENV:NUM_SAMPLES:1%%
+  num_frames: %%ENV:NUM_FRAMES:1%%
 %%config-end%%
 */
 
@@ -104,6 +109,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
 #include "utils/hash_v0.glsl"
 #include "utils/sampling_v0.glsl"
 #include "utils/ui_v0.glsl"
+#include "utils/brdf_v0.glsl"
 
 //
 // Parameters
@@ -112,7 +118,9 @@ layout (std140, binding = 1) buffer Ssbo1 {
 const ivec3 kSize = ivec3(%%ENV:H:512%% * 2, %%ENV:H:512%%, 1);
 const float kDeltaTheta = M_PI / kSize.y;
 const float kDeltaPhi = 2.0 * M_PI / kSize.x;
-const int kNumSamplesPerFrame = 16;
+const int kNumSamplesPerFrame = 8;
+const float kRoughness = %%ENV:ROUGHNESS:0.2%%;
+
 
 int toDataIndex(ivec3 p, ivec3 size) {
   return size.y * size.x * p.z + size.x * p.y + p.x;
@@ -131,27 +139,40 @@ int toDataIndex(ivec3 p, ivec3 size) {
     return textureLod(tex_environment, uv, 0.0).xyz;
   }
 
-  vec3 irradianceMonteCarlo(vec3 n) {
-    vec3 I = vec3(0.0);
-    for (int i = 0; i < kNumSamplesPerFrame; i++) {
-      // Monte carlo evaluation of \int_{w} Li(w) (n.w)
+  vec3 integrate(vec3 n, float roughness) {
+    vec3 L = vec3(0.0);
 
-      // [Halton sequence]
+    // Setup brdf related parameters
+    vec3 wo = n;
+    float a = pow2(roughness);
+    float a2 = pow2(a);
+
+    for (int i = 0; i < kNumSamplesPerFrame; i++) {
+      // Monte carlo evaluation of "int_wi D(wh) Li(wi) (n.wi)"
+      // - sample density is "rho(wh) = D(wh) n.wh"
+      // - change of var. by "wi = refl(wo | wh)", therefore, we put Jacobian "4.0 * wh_o_wo"
+      vec3 n_wh;
+      float pdf;
       vec2 u = Misc_halton2D(kNumSamplesPerFrame * iFrame + i + 1);
       u = mod(u + hash32(n) * 0.01, 1.0); // with slight pixel-wise random offset
+      Brdf_GGX_sampleCosineD(u, a, /*out*/ n_wh, pdf);
 
-      // (n.w) distribution
-      vec3 p, wi;
-      float pdf;
-      Sampling_hemisphereCosine(u, /*out*/ p, pdf);
+      vec3 wh = T_zframe(n) * n_wh;
+      vec3 wi = 2.0 * dot(wh, wo) * wh - wo; // reflect
+      float n_o_wh = dot(n, wh);
+      float n_o_wo = dot(n, wo);
+      float n_o_wi = dot(n, wi);
+      float wh_o_wo = dot(wh, wo);
+      float wh_o_wi = dot(wh, wi);
 
-      // [ or use uniform distribution]
-      // Sampling_hemisphereUniform(u, /*out*/ p, pdf);
+      vec3 Li_env = Li(wi);
+      float D = Brdf_GGX_D(n_o_wh, a2);
+      float J = 4.0 * wh_o_wo;
 
-      I += Li(T_zframe(n) * p) * p.z / pdf;
+      L += J * D * Li_env * clamp0(n_o_wi) / pdf;
     }
-    I /= float(kNumSamplesPerFrame);
-    return I;
+    L /= float(kNumSamplesPerFrame);
+    return L;
   }
 
   vec3 renderPixel(vec3 p) {
@@ -159,7 +180,8 @@ int toDataIndex(ivec3 p, ivec3 size) {
     float phi = kDeltaPhi * (float(p.x) + 0.5);
     vec3 n = T_sphericalToCartesian(vec3(1.0, theta, phi));
     n = vec3(-n.y, n.z, n.x); // to OpenGL frame
-    vec3 L = irradianceMonteCarlo(n);
+    vec3 L = integrate(n, kRoughness);
+
     // [debug]
     // L = Li(n);
     return L;
