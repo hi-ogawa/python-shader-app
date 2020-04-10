@@ -728,12 +728,14 @@ class OffscreenRenderer():
     self.renderer = MultiPassRenderer(offscreen=True)
 
   def render(self, shader_file):
+    from time import sleep
     src, _ = preprocess_include(shader_file)
     self.renderer.configure(src, self.w, self.h)
     option = self.renderer.config['offscreen_option']
     fps = option['fps']
     num_frames = option['num_frames']
     for frame in range(num_frames):
+      sleep(1 / 120)  # throttle loop since it stalls whole graphics system
       time = frame / fps
       self.renderer.draw(
           self.fbo.handle(), self.w, self.h, frame, time, mouse_down=False,

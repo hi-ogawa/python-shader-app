@@ -1,10 +1,16 @@
 Download hdr file from https://hdrihaven.com and convert it to png.
 
 ```
-# e.g. https://hdrihaven.com/hdri/?h=sunflowers
-wget -P . https://hdrihaven.com/files/hdris/sunflowers_1k.hdr
-oiiotool -i sunflowers_1k.hdr --powc 0.45 -o sunflowers_1k.hdr.png
+# e.g. https://hdrihaven.com/hdri/?h=entrance_hall
+wget -P shaders/images/hdrihaven -c https://hdrihaven.com/files/hdris/entrance_hall_2k.hdr
 ```
+
+Generate spherical harmonics coefficient
+
+```
+python -c 'from misc.hdr.src.irradiance import *; print_M_from_file("shaders/images/hdrihaven/entrance_hall_2k.hdr")'
+```
+
 
 Generate cube map
 

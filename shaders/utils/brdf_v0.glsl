@@ -34,7 +34,7 @@ float Brdf_GGX_Vis(float n_o_wo, float n_o_wi, float wh_o_wo, float wh_o_wi, flo
 }
 
 void Brdf_GGX_sampleCosineD(vec2 u, float a, out vec3 wh, out float pdf) {
-  float theta = a * sqrt(u.x / (1.0 - u.x));
+  float theta = atan(a * sqrt(u.x / (1.0 - u.x)));
   float phi = 2.0 * M_PI * u.y;
   wh = T_sphericalToCartesian(vec3(1.0, theta, phi));
   pdf = cos(theta) * Brdf_GGX_D(cos(theta), pow2(a));
