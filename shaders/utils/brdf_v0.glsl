@@ -28,7 +28,7 @@ float Brdf_GGX_G2(float n_o_wo, float n_o_wi, float a2) {
 float Brdf_GGX_Vis(float n_o_wo, float n_o_wi, float wh_o_wo, float wh_o_wi, float a2) {
   // Vis = G2 / 4 (n.wo) (n.wi)
   float Vis_tmp1 = n_o_wi * sqrt(pow2(n_o_wo) * (1.0 - a2) + a2);
-  float Vis_tmp2 = n_o_wi * sqrt(pow2(n_o_wi) * (1.0 - a2) + a2);
+  float Vis_tmp2 = n_o_wo * sqrt(pow2(n_o_wi) * (1.0 - a2) + a2);
   float Vis = 0.5 / (Vis_tmp1 + Vis_tmp2);
   return Vis * step(0.0, wh_o_wo) * step(0.0, wh_o_wi);
 }
