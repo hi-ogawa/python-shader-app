@@ -137,7 +137,7 @@ int toDataIndex(ivec3 p, ivec3 size) {
       // Monte carlo evaluation of \int_{w} Li(w) (n.w)
 
       // [Halton sequence]
-      vec2 u = Misc_Halton2D(iFrame + 1);
+      vec2 u = Misc_halton2D(iFrame + 1);
       u = mod(u + hash32(n) * 0.01, 1.0); // with slight pixel-wise random offset
 
       // (n.w) distribution

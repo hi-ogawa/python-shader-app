@@ -118,9 +118,9 @@ mat4 getVertexTransform(vec2 resolution) {
   vec3 getPosition() {
     vec2 q;
     if (U_mode_sequence < 1.0) {
-      q = Misc_Hammersley2D(gl_InstanceID + 1, uint(U_num_samples));
+      q = Misc_hammersley2D(gl_InstanceID + 1, uint(U_num_samples));
     } else {
-      q = Misc_Halton2D(gl_InstanceID + 1);
+      q = Misc_halton2D(gl_InstanceID + 1);
     }
 
     vec3 p;

@@ -44,7 +44,7 @@ float Misc_corput2(uint n) {
 }
 
 // 2dim Hammersley set (assume n \in {1, 2, ..., n_max})
-vec2 Misc_Hammersley2D(uint n, uint n_max) {
+vec2 Misc_hammersley2D(uint n, uint n_max) {
   // - Offset by "1 / 2 N" so it fits in (0, 1)^2
   // - Precise bound is [dx, 1 - dx] x [dy, 1 - dy] where
   //     dx = 1 / 2 N
@@ -67,7 +67,7 @@ float Misc_corput(uint n, uint base) {
   return float(rev) / float(pow_base);
 }
 
-vec2 Misc_Halton2D(uint n) {
+vec2 Misc_halton2D(uint n) {
   // assert n > 1
   return vec2(Misc_corput(n, 2u), Misc_corput(n, 3u));
 }
