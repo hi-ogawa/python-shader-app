@@ -46,7 +46,8 @@ plugins:
         # p_vs, faces = loader_ply.load('misc/bvh/data/Armadillo.ply')
 
         # [ obj format ]
-        # p_vs, faces = loader_obj.load('misc/bvh/data/spider.obj')
+        p_vs, faces = loader_obj.load('misc/bvh/data/spider.obj')
+        p_vs, faces = loader_obj.load('misc/mesh/data/suzanne.obj')
 
         p_vs = utils.normalize_positions(p_vs)
         verts, faces = utils.finalize(p_vs, faces, smooth=False)
