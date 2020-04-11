@@ -14,7 +14,7 @@ python -m src.app --width 500 --height 500 shaders/ex00_checker.glsl
 python -m src.app --width 500 --height 500 shaders/ex00_checker.glsl --offscreen test.png
 
 # Render all examples offscreen
-python -m src.batch --out-dir shaders/images --format png shaders/ex*.glsl
+python -m src.batch --out-dir shaders/images/render --format png shaders/ex*.glsl
 
 # Unit test
 python -m unittest -v src/*_test.py

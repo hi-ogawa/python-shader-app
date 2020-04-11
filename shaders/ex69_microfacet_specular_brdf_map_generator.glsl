@@ -7,7 +7,7 @@
 //       q = (int_wi D Vis (1 - n.wo)^5 (n.wi))
 //
 // Usage:
-//   OUTFILE=shaders/images/lookup_table/ex69.hdr NUM_FRAMES=256 python -m src.app shaders/ex69_microfacet_specular_brdf_map_generator.glsl --offscreen /dev/zero
+//   OUTFILE=shaders/images/generated/ex69.hdr NUM_FRAMES=256 python -m src.app shaders/ex69_microfacet_specular_brdf_map_generator.glsl --offscreen /dev/zero
 //
 
 /*
