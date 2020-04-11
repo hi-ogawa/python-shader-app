@@ -4,14 +4,14 @@ import numpy as np
 from .utils import if3
 
 
-def setup_texture_data(target, filename, config):
+def setup_texture_data(target, filename, config, level=0):
   if filename.endswith('.hdr'):
-    setup_texture_data_hdr(target, filename, config)
+    setup_texture_data_hdr(target, filename, config, level=level)
   else:
-    setup_texture_data_qimage(target, filename, config)
+    setup_texture_data_qimage(target, filename, config, level=level)
 
 
-def setup_texture_data_qimage(target, filename, config):
+def setup_texture_data_qimage(target, filename, config, level=0):
   qimage = QtGui.QImage(filename)
   qimage_format = qimage.format()
   assert qimage_format != QtGui.QImage.Format_Invalid
@@ -24,17 +24,23 @@ def setup_texture_data_qimage(target, filename, config):
 
   W, H = qimage.width(), qimage.height()
   data = qimage.constBits()
-  gl.glTexImage2D(target, 0, gl.GL_RGBA8, W, H, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data)
+  if level == 0:
+    gl.glTexImage2D(target, 0, gl.GL_RGBA8, W, H, 0, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data)
+  else:
+    gl.glTexSubImage2D(target, level, 0, 0, W, H, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, data)
 
 
-def setup_texture_data_hdr(target, filename, config):
+def setup_texture_data_hdr(target, filename, config, level=0):
   import misc.hdr.src.main_v2 as hdr
   data = hdr.load_file(filename)
   if config.get('y_flip'):
     data = np.flip(data, axis=0)
 
   H, W = data.shape[:2]
-  gl.glTexImage2D(target, 0, gl.GL_RGB32F, W, H, 0, gl.GL_RGB, gl.GL_FLOAT, data)
+  if level == 0:
+    gl.glTexImage2D(target, 0, gl.GL_RGB32F, W, H, 0, gl.GL_RGB, gl.GL_FLOAT, data)
+  else:
+    gl.glTexSubImage2D(target, level, 0, 0, W, H, gl.GL_RGB, gl.GL_FLOAT, data)
 
 
 def setup_texture_parameters(target, config):
@@ -46,5 +52,5 @@ def setup_texture_parameters(target, config):
   if config.get('mipmap'):
     gl.glTexParameteri(target, gl.GL_TEXTURE_MIN_FILTER, if3(config.get('filter') == 'linear', gl.GL_LINEAR_MIPMAP_LINEAR, gl.GL_NEAREST))
     gl.glTexParameteri(target, gl.GL_TEXTURE_BASE_LEVEL, 0)
-    gl.glTexParameteri(target, gl.GL_TEXTURE_MAX_LEVEL, 10)
+    gl.glTexParameteri(target, gl.GL_TEXTURE_MAX_LEVEL, len(config.get('file_mipmaps', range(10))) - 1)
     gl.glGenerateMipmap(target)

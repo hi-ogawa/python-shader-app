@@ -371,9 +371,16 @@ class TexturePlugin(Plugin):
     self.handle = gl.glGenTextures(1)
     target = gl.GL_TEXTURE_2D
     gl.glBindTexture(target, self.handle)
-    filename = self.config.get('file')
-    utils_gl.setup_texture_data(target, filename, self.config)
-    utils_gl.setup_texture_parameters(target, self.config)
+    if self.config.get('file_mipmaps'):  # support explicit mipmap data
+      filenames = self.config['file_mipmaps']
+      for level, filename in enumerate(filenames):
+        utils_gl.setup_texture_data(target, filename, self.config, level=level)
+        if level == 0:
+          utils_gl.setup_texture_parameters(target, self.config)
+    else:
+      filename = self.config['file']
+      utils_gl.setup_texture_data(target, filename, self.config)
+      utils_gl.setup_texture_parameters(target, self.config)
 
   def on_bind_program(self, program_handle):
     location = gl.glGetUniformLocation(program_handle, self.config['name'])
