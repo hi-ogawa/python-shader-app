@@ -1,13 +1,15 @@
 //
 // Microface specular environment map generator
 //
-// Usage:
-//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=512 ROUGHNESS=0.2 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
-//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=256 ROUGHNESS=0.4 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
-//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=128 ROUGHNESS=0.6 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
-//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=64  ROUGHNESS=0.8 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
-//   INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=32  ROUGHNESS=1.0 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
-//
+
+/*
+Usage:
+INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=512 ROUGHNESS=0.2 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=256 ROUGHNESS=0.4 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=128 ROUGHNESS=0.6 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=64  ROUGHNESS=0.8 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+INFILE=shaders/images/hdrihaven/lythwood_lounge_2k.hdr NUM_FRAMES=1024 H=32  ROUGHNESS=1.0 python -m src.app --width 1 --height 1 shaders/ex68_microfacet_specular_environment_map_generator.glsl --offscreen /dev/zero
+*/
 
 /*
 %%config-start%%
@@ -148,13 +150,27 @@ int toDataIndex(ivec3 p, ivec3 size) {
     float a2 = pow2(a);
 
     for (int i = 0; i < kNumSamplesPerFrame; i++) {
-      // Monte carlo evaluation of "int_wi D(wh) Li(wi) (n.wi)"
-      // - sample density is "rho(wh) = D(wh) n.wh"
-      // - change of var. by "wi = refl(wo | wh)", therefore, we put Jacobian "4.0 * wh_o_wo"
+      //
+      // [ My formula ]
+      //   int_wi D(wh) Li(wi) (n.wi)
+      //   = int_wh D(wh) J(wh) Li(wi) (n.wi)   (change of var wi = refl(wo | wh))
+      //
+      //   for Monte Carlo evaluation, sample density is "rho(wh) = D(wh) n.wh"
+      //
+
+      //
+      // [ Epic's formula ]
+      //   int_wh D(wh) (wh.n) Li(wi) (n.wi)
+      //
+      // NOTE:
+      //   - from sample density, it implicitly has "wh.n"
+      //   - it skips jacobian of change of var
+      //
+
       vec3 n_wh;
       float pdf;
       vec2 u = Misc_halton2D(kNumSamplesPerFrame * iFrame + i + 1);
-      u = mod(u + hash32(n) * 0.01, 1.0); // with slight pixel-wise random offset
+      u = mod(u + hash32(n) * 0.01, vec2(1.0));  // with slight pixel-wise random offset
       Brdf_GGX_sampleCosineD(u, a, /*out*/ n_wh, pdf);
 
       vec3 wh = T_zframe(n) * n_wh;
@@ -169,7 +185,11 @@ int toDataIndex(ivec3 p, ivec3 size) {
       float D = Brdf_GGX_D(n_o_wh, a2);
       float J = 4.0 * wh_o_wo;
 
-      L += J * D * Li_env * clamp0(n_o_wi) / pdf;
+      // [ My formula ]
+      // L += J * D * Li_env * clamp0(n_o_wi) / pdf;
+
+      // [ Epic's formula ]
+      L += D * n_o_wh * Li_env * clamp0(n_o_wi) / pdf;
     }
     L /= float(kNumSamplesPerFrame);
     return L;
@@ -194,6 +214,7 @@ int toDataIndex(ivec3 p, ivec3 size) {
 
     vec3 L_now = renderPixel(p);
     vec3 L_prev = Ssbo_data[idx].xyz;
+    if (iFrame == 0) { L_prev = vec3(0.0); }
     vec3 L = mix(L_prev, L_now, 1.0 / float(iFrame + 1));
     Ssbo_data[idx] = vec4(L, 1.0);
   }

@@ -2,6 +2,7 @@
 // Image based lighting experiment
 //
 
+
 /*
 %%config-start%%
 plugins:
@@ -16,7 +17,8 @@ plugins:
   - type: rasterscript
     params:
       exec: |
-        from misc.mesh.src import utils, data, ex02
+        from misc.mesh.src import utils, data, ex02, ex00
+        #RESULT = ex00.example('cube')
         #RESULT = list(map(bytes, ex02.icosphere(smooth=True)))
         #RESULT = list(map(bytes, utils.finalize(*data.torus(), smooth=True)))
         #RESULT = list(map(bytes, utils.finalize(*ex02.torus_by_extruding_circle(), smooth=False)))
@@ -61,19 +63,31 @@ plugins:
       vertex_shader: mainVertexUI
       fragment_shader: mainFragmentDiscard
 
-  # [ Environment texture ]
+  # [ Envrionment microfacet specular map ]
   - type: texture
     params:
-      name: tex_environment
-      type: file
-      #file: shaders/images/pauldebevec/uffizi_cross.hdr.latlng.hdr
-      #file: shaders/images/hdrihaven/entrance_hall_2k.hdr
-      file: shaders/images/hdrihaven/lythwood_lounge_2k.hdr
-      mipmap: false
-      wrap: repeat
+      name: tex_specular
+      file_mipmaps:
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr.ex68-0.2-512.hdr
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr.ex68-0.4-256.hdr
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr.ex68-0.6-128.hdr
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr.ex68-0.8-64.hdr
+        - shaders/images/hdrihaven/lythwood_lounge_2k.hdr.ex68-1.0-32.hdr
+      mipmap: true
+      wrap: clamp
       filter: linear
       y_flip: true
-      index: 0
+      index: 1
+
+  - type: texture
+    params:
+      name: tex_brdf
+      file: shaders/images/generated/ex69.hdr
+      mipmap: false
+      wrap: clamp
+      filter: linear
+      index: 2
 
   # [ Variables ]
   #- type: uniform
@@ -91,21 +105,27 @@ plugins:
   - type: uniform
     params:
       name: U_metalness
-      default: 0.2
+      default: 0.5
       min: 0
       max: 1
   - type: uniform
     params:
       name: U_roughness
-      default: 0.1
+      default: 0.5
       min: 0
       max: 1
   #- type: uniform
   #  params:
-  #    name: U_color_saturation
-  #    default: 1.0
+  #    name: U_use_montecarlo
+  #    default: 0.0
   #    min: 0
   #    max: 1
+  - type: uniform
+    params:
+      name: U_color_saturation
+      default: 0.5
+      min: 0
+      max: 1
 
 samplers: []
 programs: []
@@ -180,10 +200,13 @@ mat3 getRayTransform(vec2 resolution) {
 
 #ifdef COMPILE_mainFragmentShading
   uniform sampler2D tex_environment;
+  uniform sampler2D tex_specular;
+  uniform sampler2D tex_brdf;
   in vec3 Interp_position;
   in vec3 Interp_normal;
   uniform float U_roughness = 0.05;
   uniform float U_metalness = 0.1;
+  uniform float U_use_montecarlo = 0.0;
   uniform float U_exposure_diffuse = -1.0;
   uniform float U_color_saturation = 1.0;
   layout (location = 0) out vec4 Fragment_color;
@@ -191,7 +214,7 @@ mat3 getRayTransform(vec2 resolution) {
   vec3 Li_IBL_microfacetSpecular_monteCarlo(
       vec3 p, vec3 n, vec3 camera_p,
       vec3 color, float metalness, float roughness) {
-    const int kNumSamples = 16;
+    const int kNumSamples = 64;
     vec3 L = vec3(0.0);
 
     // Setup brdf related parameters
@@ -209,20 +232,17 @@ mat3 getRayTransform(vec2 resolution) {
       vec3 n_wh;
       float pdf;
       vec2 u = Misc_halton2D(i);
-      u = mod(u + hash32(p) * 0.05, 1.0); // with slight pixel-wise random offset
+      u = mod(u + hash32(p) * 0.1, 1.0); // with slight pixel-wise random offset
       Brdf_GGX_sampleCosineD(u, a, n_wh, pdf);
 
       vec3 wh = T_zframe(n) * n_wh;
       vec3 wi = 2.0 * dot(wh, wo) * wh - wo; // reflect
-
-      vec2 uv = T_texcoordLatLng(wi);
-      vec3 Li_env = textureLod(tex_environment, T_texcoordLatLng(wi), 0.0).xyz;
-
       float n_o_wh = dot(n, wh);
       float n_o_wi = dot(n, wi);
       float wh_o_wo = dot(wh, wo);
       float wh_o_wi = dot(wh, wi);
 
+      vec3 Li_env = textureLod(tex_specular, T_texcoordLatLng(wi), 0.0).xyz;
       float D = Brdf_GGX_D(n_o_wh, a2);
       float Vis = Brdf_GGX_Vis(n_o_wi, n_o_wo, wh_o_wo, wh_o_wi, a2);
       vec3 F = Brdf_F_Schlick(wh_o_wo, F0);
@@ -231,6 +251,45 @@ mat3 getRayTransform(vec2 resolution) {
       L += J * F * D * Vis * Li_env * clamp0(n_o_wi) / pdf;
     }
     L /= float(kNumSamples);
+    return L;
+  }
+
+
+  vec3 Li_IBL_microfacetSpecular_epicApprox(
+      vec3 p, vec3 n, vec3 camera_p,
+      vec3 color, float metalness, float roughness) {
+    //
+    // [ Epic approximation ]
+    //
+    // Lo(wo, n, rough, f0)
+    //   = int_wi D . Vis . F . Li . (n.wi)
+    //   ~ (int_wi D . Vis . F . (n.wi)) . (int_wh D . (wh.refl(wo, n)) . Li . (n.wi))
+    //   =  A(wo, n, rough, f0) . B(refl(wo, n), rough)
+    //
+
+    vec3 L = vec3(0.0);
+
+    // Setup brdf related parameters
+    vec3 wo = normalize(camera_p - p);
+    float n_o_wo = dot(n, wo);
+    vec3 f0 = mix(vec3(0.04), color, metalness);
+    vec3 refl = 2.0 * dot(n, wo) * n - wo;
+
+    // cf. ex68
+    vec2 pq_uv = vec2(n_o_wo, roughness);
+    vec2 pq = texture(tex_brdf, pq_uv).xy;
+    vec3 A = pq.x * f0 + pq.y * (1.0 - f0);
+
+    // cf. ex69
+    float B_level = 5.0 * roughness;  // interpolate within 5 * [0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    vec2 B_uv = T_texcoordLatLng(refl);
+    vec3 B = textureLod(tex_specular, B_uv, B_level).xyz;
+
+    L = A * B;
+
+    // [debug]
+    // L = A;
+    // L = B;
     return L;
   }
 
@@ -320,7 +379,11 @@ mat3 getRayTransform(vec2 resolution) {
       vec3 p, vec3 n, vec3 camera_p,
       vec3 color, float metalness, float roughness) {
     vec3 L = vec3(0.0);
-    L += Li_IBL_microfacetSpecular_monteCarlo(p, n, camera_p, color, metalness, roughness);
+    if (U_use_montecarlo > 0.5) {
+      L += Li_IBL_microfacetSpecular_monteCarlo(p, n, camera_p, color, metalness, roughness);
+    } else {
+      L += Li_IBL_microfacetSpecular_epicApprox(p, n, camera_p, color, metalness, roughness);
+    }
     L += Li_IBL_diffuse_sphericalHarmonics(p, n, camera_p, color, metalness, roughness);
     return L;
   }
@@ -353,14 +416,14 @@ mat3 getRayTransform(vec2 resolution) {
 
 #ifdef COMPILE_mainFragmentEnvironment
   uniform vec3 iResolution;
-  uniform sampler2D tex_environment;
-  uniform float U_exposure = 0.0;
+  uniform sampler2D tex_specular;
+  uniform float U_exposure = -0.5;
   layout (location = 0) out vec4 Fragment_color;
 
   void main() {
     vec2 frag_coord = gl_FragCoord.xy;
     vec3 ray_dir = getRayTransform(iResolution.xy) * vec3(frag_coord, 1.0);
-    vec3 L = textureLod(tex_environment, T_texcoordLatLng(ray_dir), 0.0).xyz;
+    vec3 L = textureLod(tex_specular, T_texcoordLatLng(ray_dir), 0.0).xyz;
     L *= pow(2.0, U_exposure);
     vec3 color = encodeGamma(L);
     Fragment_color = vec4(color, 1.0);
