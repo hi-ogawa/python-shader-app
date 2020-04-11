@@ -37,7 +37,7 @@ plugins:
   - type: texture
     params:
       name: tex_environment
-      file_exec: "RESULT = os.environ.get('INFILE') or 'shaders/images/hdrihaven/carpentry_shop_02_2k.hdr'"
+      file: %%ENV:INFILE:shaders/images/hdrihaven/carpentry_shop_02_2k.hdr%%
       mipmap: false
       wrap: repeat
       filter: linear

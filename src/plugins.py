@@ -371,7 +371,7 @@ class TexturePlugin(Plugin):
     self.handle = gl.glGenTextures(1)
     target = gl.GL_TEXTURE_2D
     gl.glBindTexture(target, self.handle)
-    filename = self.config.get('file') or exec_config(self.config['file_exec'])
+    filename = self.config.get('file')
     utils_gl.setup_texture_data(target, filename, self.config)
     utils_gl.setup_texture_parameters(target, self.config)
 
