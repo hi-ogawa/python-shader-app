@@ -4,6 +4,7 @@
 import sys, traceback, signal, os, re
 from PySide2 import QtCore
 import numpy as np
+from .common import APP
 
 
 # Wrap buggy function which is constantly invoked from Qt's eventloop
@@ -240,6 +241,7 @@ DEFAULT_EXEC_NAMESPACE = dict(
   RESULT=None,
   RELOAD_REC=reload_rec,
   os=os,
+  APP=APP,
 )
 
 def exec_config(

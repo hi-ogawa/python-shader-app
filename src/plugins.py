@@ -2,7 +2,7 @@ from PySide2 import QtCore, QtGui, QtUiTools
 import OpenGL.GL as gl
 import os, ctypes, dataclasses
 import numpy as np
-from .common import ShaderError
+from .common import ShaderError, APP
 from .utils import pad_data, reload_rec, exec_config, exec_config_if_str, if3
 from . import utils_gl
 
@@ -237,6 +237,8 @@ class RasterscriptPlugin(Plugin):
     self.vao = QtGui.QOpenGLVertexArrayObject()
     self.vertex_buffer = QtGui.QOpenGLBuffer(QtGui.QOpenGLBuffer.VertexBuffer)
     self.index_buffer = QtGui.QOpenGLBuffer(QtGui.QOpenGLBuffer.IndexBuffer)
+    self.vertex_buffer.setUsagePattern(QtGui.QOpenGLBuffer.DynamicDraw)
+    self.index_buffer.setUsagePattern(QtGui.QOpenGLBuffer.DynamicDraw)
     self.vao.create()
     self.vertex_buffer.create()
     self.index_buffer.create()
@@ -290,6 +292,18 @@ class RasterscriptPlugin(Plugin):
 
     if not self.program.link():
       raise ShaderError(f"[RasterscriptPlugin] Link: \n{self.program.log()}")
+
+  def on_begin_draw(self):
+    # TODO: black screen randomly happens on reloading file
+    callback = self.config.get('exec_on_begin_draw')
+    if callback:
+      self.vertex_data, self.index_data = exec_config(callback)  # (bytes, bytes)
+      self.vertex_buffer.bind()
+      self.vertex_buffer.allocate(self.vertex_data, len(self.vertex_data))
+      self.vertex_buffer.release()
+      self.index_buffer.bind()
+      self.index_buffer.allocate(self.index_data, len(self.index_data))
+      self.index_buffer.release()
 
   def on_draw(
       self, default_framebuffer, W, H, frame, time, mouse_down,
@@ -469,6 +483,73 @@ class UniformPlugin(Plugin):
       return self.slider.value() / self.resolution
     return self.default
 
+  def on_begin_draw(self):
+    APP[self.config['name']] = self.get_value()
+
   def on_bind_program(self, program_handle):
     location = gl.glGetUniformLocation(program_handle, self.config['name'])
     gl.glUniform1f(location, self.get_value())
+
+
+class UniformlistPlugin(Plugin):
+  def configure(self, arg):
+    # config params: name, default, min, max, resolution
+    self.config = arg.config
+    self.offscreen = arg.offscreen
+    self.size = len(self.config['name'])
+    assert self.size <= 16
+    self.config['resolution'] = self.config.get('resolution', [100] * self.size)
+    if not self.offscreen:
+      self.setup_gui()
+
+  def cleanup(self):
+    if not self.offscreen:
+      self.window.close()
+
+  def setup_gui(self):
+    filename = os.path.join(os.path.dirname(__file__), 'uniformlist_plugin.ui')
+    data = QtCore.QByteArray(open(filename, 'rb').read())
+    buffer = QtCore.QBuffer(data)
+    self.window = QtUiTools.QUiLoader().load(buffer)
+    self.window.resize(350, 32 + self.size * 20)
+    self.sliders = [None] * self.size
+    self.labels  = [None] * self.size
+    top_layout = self.window.findChild(QtCore.QObject, 'gridLayout')
+    for i in range(16):
+      layout = self.window.findChild(QtCore.QObject, f"horizontalLayout_{i + 1}")
+      if self.size <= i:
+        for j in range(layout.count()):
+          widget = layout.itemAt(j).widget()
+          if widget:
+            widget.close()
+        top_layout.removeItem(layout)
+        continue
+      slider = self.window.findChild(QtCore.QObject, f"slider_{i + 1}")
+      label  = self.window.findChild(QtCore.QObject, f"value_{i + 1}")
+      resolution = self.config['resolution'][i]
+      slider.setRange(
+          self.config['min'][i] * resolution,
+          self.config['max'][i] * resolution)
+      self.sliders[i] = slider
+      self.labels[i]  = label
+      # Quick trick to workaround python namespace by "double-lambda"
+      slider.valueChanged.connect(
+          (lambda i: (lambda *_: self.labels[i].setText(f"{self.get_value(i): >4.2f}")))(i))
+      slider.setValue(self.config['default'][i] * resolution)
+
+    # Quick trick to prevent this window from appearing before the main window
+    QtCore.QTimer.singleShot(500, lambda *_: self.window.show())
+
+  def get_value(self, i):
+    if not self.offscreen:
+      return self.sliders[i].value() / self.config['resolution'][i]
+    return self.config['default'][i]
+
+  def on_begin_draw(self):
+    for i in range(self.size):
+      APP[self.config['name'][i]] = self.get_value(i)
+
+  def on_bind_program(self, program_handle):
+    for i in range(self.size):
+      location = gl.glGetUniformLocation(program_handle, self.config['name'][i])
+      gl.glUniform1f(location, self.get_value(i))
