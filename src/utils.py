@@ -145,8 +145,8 @@ def preprocess_source_exec(src):
 
 def preprocess_source(src): # -> str
   src = preprocess_source_exec(src)
-  src = preprocess_source_eval(src)
   src = preprocess_source_env(src)
+  src = preprocess_source_eval(src)
   return src
 
 
