@@ -3,14 +3,10 @@ from .utils import soa_to_aos
 
 
 def make_axes(i, bound):
-  p_vs = Npf(np.empty((6, 3)))
-  c_vs = Npf(np.empty((6, 4)))
   p = Npf([0, 0, 0])
   p[i] = 1
-  p_vs[2 * i + 0] = + bound * p
-  p_vs[2 * i + 1] = - bound * p
-  c_vs[2 * i + 0] = Npf([*p, 0.8])
-  c_vs[2 * i + 1] = Npf([*p, 0.8])
+  p_vs = bound * Npf([ +p, -p ])
+  c_vs = Npf([[*p, 0.8], [*p, 0.8]])
   return soa_to_aos(p_vs, c_vs)
 
 
