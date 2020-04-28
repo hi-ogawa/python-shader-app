@@ -304,7 +304,7 @@ vec3 inertiaBox(float rho, vec3 s) {
         vec3 dv_g = dt * n;
         vec3 dw_g = dt * cross(r, inverse(A) * n);
 
-        float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mv * dw_g);
+        float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mw * dw_g);
 
         // velocity correction
         vec3 dv = (-g / q) * dv_g;

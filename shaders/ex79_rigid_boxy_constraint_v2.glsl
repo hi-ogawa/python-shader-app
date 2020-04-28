@@ -1,5 +1,5 @@
 //
-// Rigid body pendulum (equality position constraint)
+// Double rigid body pendulum
 //
 
 /*
@@ -17,6 +17,7 @@ plugins:
         p_vs, faces = data.cube()
         p_vs *= 0.5  # in [-0.5, 0.5]^3
         RESULT = list(map(bytes, utils.finalize(p_vs, faces, smooth=False)))
+      instance_count: 2
       primitive: GL_TRIANGLES
       capabilities: [GL_DEPTH_TEST]
       vertex_shader: mainVertexBox
@@ -45,6 +46,7 @@ plugins:
         verts = utils.soa_to_aos(vs1, vs2)
         indices = np.arange(2 * len(verts), dtype=np.uint32)
         RESULT = list(map(bytes, [verts, indices]))
+      instance_count: 2
       primitive: GL_LINES
       vertex_shader: mainVertexBoxFrame
       fragment_shader: mainFragmentColor
@@ -55,7 +57,7 @@ plugins:
   # [ Geometry : constraint line ]
   - type: rasterscript
     params:
-      exec: import numpy as np; RESULT = bytes(), bytes(np.uint32(np.arange(2)))
+      exec: import numpy as np; RESULT = bytes(), bytes(np.uint32(np.arange(4)))
       primitive: GL_LINES
       capabilities: [GL_DEPTH_TEST]
       vertex_shader: mainVertexConstraint
@@ -117,6 +119,11 @@ layout (std140, binding = 1) buffer Ssbo1 {
   vec3 Ssbo_v;
   vec4 Ssbo_Aq; // unit quaternion as SO(3)
   vec3 Ssbo_w;
+
+  vec3 Ssbo_xx[2];
+  vec3 Ssbo_vv[2];
+  vec4 Ssbo_AA[2]; // unit quaternion as SO(3)
+  vec3 Ssbo_ww[2];
 };
 
 //
@@ -131,8 +138,8 @@ layout (std140, binding = 1) buffer Ssbo1 {
 
 // camera
 const float kYfov = 39.0 * M_PI / 180.0;
-const vec3  kCameraP = vec3(2.0, 0.5, 4.0) * 2.0;
-const vec3  kLookatP = OZN.yxy * 1.5;
+const vec3  kCameraP = vec3(2.0, 0.5, 4.0) * 3.0;
+const vec3  kLookatP = OZN.yyy;
 
 mat4 getVertexTransform(vec2 resolution) {
   mat4 view_xform = T_perspective(kYfov, resolution.x / resolution.y, 1e-3, 1e3);
@@ -150,6 +157,9 @@ uniform float U_size_z = 1.0;
 uniform float U_gravity = 10.0;
 uniform float U_gravity_angle = 0.0;
 
+vec3 kTarget = OZN.yxy * 3.0;
+float kTargetDistance = 2.0;
+
 vec3 inertiaBox(float rho, vec3 s) {
   // M = p (x * y * z)
   // I = (M / 12) * diag(y^2 + z^2, z^2 + x^2, x^2 + y^2)
@@ -164,6 +174,12 @@ vec3 inertiaBox(float rho, vec3 s) {
     vec3 v = Ssbo_v;
     vec3 w = Ssbo_w;
     vec4 Aq = Ssbo_Aq;
+
+    vec3 xx[2] = Ssbo_xx;
+    vec3 vv[2] = Ssbo_vv;
+    vec3 ww[2] = Ssbo_ww;
+    vec4 AA[2] = Ssbo_AA;
+
     float rho = 10.0; // density kg/m^3
     vec3 size = vec3(U_size_x, U_size_y, U_size_z);
     float m = rho * size.x * size.y * size.z;
@@ -178,77 +194,114 @@ vec3 inertiaBox(float rho, vec3 s) {
     {
       vec3 f_ext = T_rotate3(OZN.yyx * U_gravity_angle * 2.0 * M_PI) * (m * U_gravity * OZN.yzy);
       vec3 tq_ext = OZN.yyy;
-      float kDumpV = 0.1;
-      float kDumpW = 0.1; // TODO: probably it depends on inertia or geometry ?
-      vec3 f = f_ext - kDumpV * v;
-      vec3 tq = tq_ext - kDumpW * q_apply(Aq, w);
-      v += dt * f / m;
-      w += dt * (1.0 / I) * (q_applyInv(Aq, tq) - cross(w, I * w));
+      float kDumpV = 0.0;
+      float kDumpW = 0.0; // TODO: probably it depends on inertia or geometry ?
+      for (int k = 0; k < 2; k++) {
+        vec3 f = f_ext - kDumpV * vv[k];
+        vec3 tq = tq_ext - kDumpW * q_apply(AA[k], ww[k]);
+        vv[k] += dt * f / m;
+        ww[k] += dt * (1.0 / I) * (q_applyInv(AA[k], tq) - cross(ww[k], I * ww[k]));
+      }
     }
 
     // 1.
-    {
-      x += dt * v;
-      Aq = q_mul(Aq, q_fromAxisAngleVector(dt * w));
+    for (int k = 0; k < 2; k++) {
+      xx[k] += dt * vv[k];
+      AA[k] = q_mul(AA[k], q_fromAxisAngleVector(dt * ww[k]));
     }
 
     // 2. velocity-based projection of distance constraints
     mat3 Mv = mat3(m);
     mat3 Mw = diag(sqrt(I));
     int kNumIter = 4;
-    vec3 target = OZN.yxy * 4.0;
-    float target_d = 3.0;
     for (int iter = 0; iter < kNumIter; iter++) {
-      // constraint is
-      //   g = |p - target| - d = 0
-      vec3 r = vec3(0.5);
-      vec3 p = x + q_apply(Aq, r);
-      float g = distance(p, target) - target_d;
+      {
+        // 1st constraint is
+        //   g = |p - target| - d = 0
+        vec3 r = vec3(0.5);
+        vec3 p = xx[0] + q_apply(AA[0], r);
+        float g = distance(p, kTarget) - kTargetDistance;
 
-      // velocity-based projection formula (TODO: write down proof)
-      vec3 n = normalize(p - target);
-      vec3 dv_g = dt * n;
-      vec3 dw_g = dt * cross(r, q_applyInv(Aq, n));
-      float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mw * dw_g);
+        // velocity-based projection formula (TODO: write down proof)
+        vec3 n = normalize(p - kTarget);
+        vec3 dv_g = dt * n;
+        vec3 dw_g = dt * cross(r, q_applyInv(AA[0], n));
+        float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mw * dw_g);
 
-      // velocity correction
-      vec3 dv = (- g / q) * dv_g;
-      vec3 dw = (- g / q) * dw_g;
+        // velocity correction
+        vec3 dv = (- g / q) * dv_g;
+        vec3 dw = (- g / q) * dw_g;
 
-      // Apply correction
-      v += dv;
-      w += dw;
+        // Apply correction
+        vv[0] += dv;
+        ww[0] += dw;
 
-      // Apply corresponding position correction
-      // NOTE: this "position-based" correction formula is actually `dt` independent
-      x += dt * dv;
-      Aq = q_mul(Aq, q_fromAxisAngleVector(dt * dw));
+        // Apply corresponding position correction
+        // NOTE: this "position-based" correction formula is actually `dt` independent
+        xx[0] += dt * dv;
+        AA[0] = q_mul(AA[0], q_fromAxisAngleVector(dt * dw));
+      }
+
+      {
+        // 2nd constraint is
+        //   g = |p0 - p1| - d = 0
+        vec3 r0 = vec3(-0.5);
+        vec3 r1 = vec3(+0.5);
+        vec3 p0 = xx[0] + q_apply(AA[0], r0);
+        vec3 p1 = xx[1] + q_apply(AA[1], r1);
+        float g = distance(p0, p1) - kTargetDistance;
+
+        // velocity-based projection formula (TODO: write down proof)
+        vec3 n = normalize(p0 - p1);
+        vec3 dv_g[2];
+        vec3 dw_g[2];
+        dv_g[0] = dt * (+ n);
+        dw_g[0] = dt * cross(r0, q_applyInv(AA[0], + n));
+        dv_g[1] = dt * (- n);
+        dw_g[1] = dt * cross(r1, q_applyInv(AA[1], - n));
+        float q =
+            dot(dv_g[0], Mv * dv_g[0]) + dot(dw_g[0], Mw * dw_g[0]) +
+            dot(dv_g[0], Mv * dv_g[0]) + dot(dw_g[1], Mw * dw_g[1]);
+
+        // velocity/position correction
+        for (int k = 0; k < 2; k++) {
+          vec3 dv = (- g / q) * dv_g[k];
+          vec3 dw = (- g / q) * dw_g[k];
+          vv[k] += dv;
+          ww[k] += dw;
+          xx[k] += dt * dv;
+          AA[k] = q_mul(AA[k], q_fromAxisAngleVector(dt * dw));
+        }
+      }
     }
 
     // initial values
     if (init) {
-      // [ Example 1 ]
-      x = vec3(-0.5, 0.5, -0.5); // this makes g = 0 initially
-      v = vec3(4.0, 0.0, 0.0);
-      w = vec3(0.0, 2.0, 0.0) * 2.0 * M_PI;
-      Aq = q_fromAxisAngle(vec3(0.0), 0.0);
+      xx[0] = vec3(-0.5, 0.5, -0.5);
+      vv[0] = vec3(2.0, 0.0, 0.0);
+      ww[0] = vec3(0.0, 1.0, 0.0) * 2.0 * M_PI;
+      AA[0] = q_fromAxisAngle(vec3(0.0), 0.0);
+
+      xx[1] = vec3(-1.5, -2.5, -1.5);
+      vv[1] = vec3(2.0, 0.0, 0.0);
+      ww[1] = vec3(0.0, 1.5, 0.0) * 2.0 * M_PI;
+      AA[1] = q_fromAxisAngle(vec3(0.0), 0.0);
     }
 
-    Ssbo_x = x;
-    Ssbo_v = v;
-    Ssbo_w = w;
-    Ssbo_Aq = Aq;
+    Ssbo_xx = xx;
+    Ssbo_vv = vv;
+    Ssbo_ww = ww;
+    Ssbo_AA = AA;
   }
 
   void mainCompute(/*unused*/ uvec3 comp_coord, uvec3 comp_local_coord) {
     float kTimeScale = 1.0;
-    // float kTimeScale = 0.1; // slow-motion and smaller time step
+    // float kTimeScale = 0.25; // slow-motion and smaller time step
     float t = Ssbo_last_time;
     float dt = kTimeScale * iTime - t;
     bool init = iFrame == 0;
 
-    int kNumSubsteps = 1;
-    // int kNumSubsteps = 8;
+    int kNumSubsteps = 8;
     float dt_substep = dt / float(kNumSubsteps);
     for (int i = 0; i < kNumSubsteps; i ++) {
       update(t, dt_substep, init);
@@ -271,11 +324,12 @@ vec3 inertiaBox(float rho, vec3 s) {
   out vec4 Interp_color;
 
   void main() {
+    int idx = gl_InstanceID;
     vec3 p = Vertex_position;
     vec3 n = Vertex_normal;
     vec3 scale = vec3(U_size_x, U_size_y, U_size_z);
-    p = q_apply(Ssbo_Aq, scale * p) + Ssbo_x;
-    n = q_apply(Ssbo_Aq, n);
+    p = q_apply(Ssbo_AA[idx], scale * p) + Ssbo_xx[idx];
+    n = q_apply(Ssbo_AA[idx], n);
 
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(p, 1.0);
@@ -292,8 +346,9 @@ vec3 inertiaBox(float rho, vec3 s) {
   out vec4 Interp_color;
 
   void main() {
+    int idx = gl_InstanceID;
     vec3 p = Vertex_position;
-    p = q_apply(Ssbo_Aq, p) + Ssbo_x;
+    p = q_apply(Ssbo_AA[idx], p) + Ssbo_xx[idx];
 
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(p, 1.0);
@@ -306,18 +361,23 @@ vec3 inertiaBox(float rho, vec3 s) {
   out vec4 Interp_color;
 
   void main() {
-    int idx = gl_VertexID;
-
-    vec3 target = OZN.yxy * 4.0;
-    float target_d = 3.0;
-    vec3 r = vec3(0.5);
-    // vec3 p = Ssbo_x + Ssbo_A * r;
-    vec3 p = q_apply(Ssbo_Aq, r) + Ssbo_x;
-
-    vec4 color = vec4(0.0, 1.0, 1.0, 1.0);
     vec3 q;
-    if (idx == 0) { q = p; }
-    if (idx == 1) { q = target; }
+    vec4 color;
+
+    vec3 p  = q_apply(Ssbo_AA[0], vec3(+0.5)) + Ssbo_xx[0];
+    vec3 p0 = q_apply(Ssbo_AA[0], vec3(-0.5)) + Ssbo_xx[0];
+    vec3 p1 = q_apply(Ssbo_AA[1], vec3(+0.5)) + Ssbo_xx[1];
+
+    if (gl_VertexID < 2) {
+      color = vec4(0.0, 1.0, 1.0, 1.0);
+      if (gl_VertexID == 0) { q = p; }
+      if (gl_VertexID == 1) { q = kTarget; }
+    } else
+    if (gl_VertexID < 4) {
+      color = vec4(1.0, 0.0, 1.0, 1.0);
+      if (gl_VertexID == 2) { q = p0; }
+      if (gl_VertexID == 3) { q = p1; }
+    }
 
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(q, 1.0);
