@@ -1,17 +1,13 @@
 //
-// Double cover S^3 -> SO(3) (aka. (unit) quaternion as 3d rotation)
+// Rigid body pendulum (equality position constraint)
 //
 
 /*
 %%config-start%%
 plugins:
-  # [ Variable ]
-  - type: uniformlist
-    params:
-      name: ['U_x', 'U_y', 'U_z', 'U_w', 'U_so3']
-      default: [0.0, 0.0, 0.0, 1.0, 0.0]
-      min: [-1, -1, -1, -1, 0]
-      max: [+1, +1, +1, +1, 2]
+  # [ Buffer ]
+  - type: ssbo
+    params: { binding: 1, type: size, size: 1024 }
 
   # [ Geometry : box ]
   - type: rasterscript
@@ -56,6 +52,16 @@ plugins:
         Vertex_position: "(gl.GL_FLOAT, 0 * 4, 3, (3 + 4) * 4)"
         Vertex_color:    "(gl.GL_FLOAT, 3 * 4, 4, (3 + 4) * 4)"
 
+  # [ Geometry : constraint line ]
+  - type: rasterscript
+    params:
+      exec: import numpy as np; RESULT = bytes(), bytes(np.uint32(np.arange(2)))
+      primitive: GL_LINES
+      capabilities: [GL_DEPTH_TEST]
+      vertex_shader: mainVertexConstraint
+      fragment_shader: mainFragmentColor
+      vertex_attributes: {}
+
   # [ Coordinate grid ]
   - type: rasterscript
     params:
@@ -77,8 +83,14 @@ plugins:
   - type: raster
     params: { primitive: GL_POINTS, count: 1, vertex_shader: mainVertexUI, fragment_shader: mainFragmentDiscard }
 
+
 samplers: []
-programs: []
+programs:
+  - name: mainCompute
+    type: compute
+    local_size: [1, 1, 1]
+    global_size: [1, 1, 1]
+    samplers: []
 
 offscreen_option:
   fps: 60
@@ -99,6 +111,14 @@ layout (std140, binding = 0) buffer Ssbo0 {
   vec3 Ssbo_lookat_p;
 };
 
+layout (std140, binding = 1) buffer Ssbo1 {
+  float Ssbo_last_time;
+  vec3 Ssbo_x;
+  vec3 Ssbo_v;
+  vec4 Ssbo_Aq; // unit quaternion as SO(3)
+  vec3 Ssbo_w;
+};
+
 //
 // Utilities
 //
@@ -111,30 +131,135 @@ layout (std140, binding = 0) buffer Ssbo0 {
 
 // camera
 const float kYfov = 39.0 * M_PI / 180.0;
-const vec3  kCameraP = vec3(2.0, 1.5, 4.0) * 1.0;
-const vec3  kLookatP = OZN.yyy;
+const vec3  kCameraP = vec3(2.0, 0.5, 4.0) * 2.0;
+const vec3  kLookatP = OZN.yxy * 1.5;
 
 mat4 getVertexTransform(vec2 resolution) {
   mat4 view_xform = T_perspective(kYfov, resolution.x / resolution.y, 1e-3, 1e3);
   return view_xform * inverse(Ssbo_camera_xform);
 }
 
-uniform float U_x = 0.0;
-uniform float U_y = 0.0;
-uniform float U_z = 0.0;
-uniform float U_w = 1.0;
-uniform float U_so3 = 0.0;
-
-
 //
 // Programs
 //
 
-vec3 rotate(vec3 v) {
-  vec4 q = normalize(vec4(U_x, U_y, U_z, U_w));
-  mat3 A = q_toSo3(q);
-  return (U_so3 < 1.0) ? q_apply(q, v) : A * v;
+uniform float U_size_x = 1.0;
+uniform float U_size_y = 1.0;
+uniform float U_size_z = 1.0;
+
+uniform float U_gravity = 10.0;
+uniform float U_gravity_angle = 0.0;
+
+vec3 inertiaBox(float rho, vec3 s) {
+  // M = p (x * y * z)
+  // I = (M / 12) * diag(y^2 + z^2, z^2 + x^2, x^2 + y^2)
+  float m = rho * s.x * s.y * s.z;
+  s = s * s;
+  return (m / 12.0) * vec3(s.y + s.z, s.z + s.x, s.x + s.y);
 }
+
+#ifdef COMPILE_mainCompute
+  void update(float t, float dt, bool init) {
+    vec3 x = Ssbo_x;
+    vec3 v = Ssbo_v;
+    vec3 w = Ssbo_w;
+    vec4 Aq = Ssbo_Aq;
+    float rho = 10.0; // density kg/m^3
+    vec3 size = vec3(U_size_x, U_size_y, U_size_z);
+    float m = rho * size.x * size.y * size.z;
+    vec3 I = inertiaBox(rho, size);
+
+    // [ Algorithm ]
+    // 0. update v, w by external force/torque (Newton-Euler equation)
+    // 1. update x, A by v, w
+    // 2. solve distance constraint as velocity projection and update v, w and then x, A
+
+    // 0.
+    {
+      vec3 f_ext = T_rotate3(OZN.yyx * U_gravity_angle * 2.0 * M_PI) * (m * U_gravity * OZN.yzy);
+      vec3 tq_ext = OZN.yyy;
+      float kDumpV = 0.1;
+      float kDumpW = 0.1; // TODO: probably it depends on inertia or geometry ?
+      vec3 f = f_ext - kDumpV * v;
+      vec3 tq = tq_ext - kDumpW * q_apply(Aq, w);
+      v += dt * f / m;
+      w += dt * (1.0 / I) * (q_applyInv(Aq, tq) - cross(w, I * w));
+    }
+
+    // 1.
+    {
+      x += dt * v;
+      Aq = q_mul(Aq, q_fromAxisAngleVector(dt * w));
+    }
+
+    // 2. velocity-based projection of distance constraints
+    mat3 Mv = mat3(m);
+    mat3 Mw = diag(sqrt(I));
+    int kNumIter = 4;
+    vec3 target = OZN.yxy * 4.0;
+    float target_d = 3.0;
+    for (int iter = 0; iter < kNumIter; iter++) {
+      // constraint is
+      //   g = |p - target| - d = 0
+      vec3 r = vec3(0.5);
+      vec3 p = x + q_apply(Aq, r);
+      float g = distance(p, target) - target_d;
+
+      // velocity-based projection formula (TODO: write down proof)
+      vec3 n = normalize(p - target);
+      vec3 dv_g = dt * n;
+      vec3 dw_g = dt * cross(r, q_applyInv(Aq, n));
+      float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mv * dw_g);
+
+      // velocity correction
+      vec3 dv = (- g / q) * dv_g;
+      vec3 dw = (- g / q) * dw_g;
+
+      // Apply correction
+      v += dv;
+      w += dw;
+
+      // Apply corresponding position correction
+      // NOTE: this "position-based" correction formula is actually `dt` independent
+      x += dt * dv;
+      Aq = q_mul(Aq, q_fromAxisAngleVector(dt * dw));
+    }
+
+    // initial values
+    if (init) {
+      // [ Example 1 ]
+      x = vec3(-0.5, 0.5, -0.5); // this makes g = 0 initially
+      v = vec3(4.0, 0.0, 0.0);
+      w = vec3(0.0, 2.0, 0.0) * 2.0 * M_PI;
+      Aq = q_fromAxisAngle(vec3(0.0), 0.0);
+    }
+
+    Ssbo_x = x;
+    Ssbo_v = v;
+    Ssbo_w = w;
+    Ssbo_Aq = Aq;
+  }
+
+  void mainCompute(/*unused*/ uvec3 comp_coord, uvec3 comp_local_coord) {
+    float kTimeScale = 1.0;
+    // float kTimeScale = 0.1; // slow-motion and smaller time step
+    float t = Ssbo_last_time;
+    float dt = kTimeScale * iTime - t;
+    bool init = iFrame == 0;
+
+    int kNumSubsteps = 1;
+    // int kNumSubsteps = 8;
+    float dt_substep = dt / float(kNumSubsteps);
+    for (int i = 0; i < kNumSubsteps; i ++) {
+      update(t, dt_substep, init);
+      t += dt_substep;
+    }
+    if (gl_GlobalInvocationID.x == 0) {
+      Ssbo_last_time = kTimeScale * iTime;
+    }
+  }
+#endif
+
 
 #ifdef COMPILE_mainVertexBox
   uniform vec3 iResolution;
@@ -148,8 +273,9 @@ vec3 rotate(vec3 v) {
   void main() {
     vec3 p = Vertex_position;
     vec3 n = Vertex_normal;
-    p = rotate(p);
-    n = rotate(n);
+    vec3 scale = vec3(U_size_x, U_size_y, U_size_z);
+    p = q_apply(Ssbo_Aq, scale * p) + Ssbo_x;
+    n = q_apply(Ssbo_Aq, n);
 
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(p, 1.0);
@@ -167,11 +293,35 @@ vec3 rotate(vec3 v) {
 
   void main() {
     vec3 p = Vertex_position;
-    p = rotate(p);
+    p = q_apply(Ssbo_Aq, p) + Ssbo_x;
 
     mat4 xform = getVertexTransform(iResolution.xy);
     gl_Position = xform * vec4(p, 1.0);
     Interp_color = Vertex_color;
+  }
+#endif
+
+#ifdef COMPILE_mainVertexConstraint
+  uniform vec3 iResolution;
+  out vec4 Interp_color;
+
+  void main() {
+    int idx = gl_VertexID;
+
+    vec3 target = OZN.yxy * 4.0;
+    float target_d = 3.0;
+    vec3 r = vec3(0.5);
+    // vec3 p = Ssbo_x + Ssbo_A * r;
+    vec3 p = q_apply(Ssbo_Aq, r) + Ssbo_x;
+
+    vec4 color = vec4(0.0, 1.0, 1.0, 1.0);
+    vec3 q;
+    if (idx == 0) { q = p; }
+    if (idx == 1) { q = target; }
+
+    mat4 xform = getVertexTransform(iResolution.xy);
+    gl_Position = xform * vec4(q, 1.0);
+    Interp_color = color;
   }
 #endif
 

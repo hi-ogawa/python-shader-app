@@ -112,12 +112,25 @@ vec3 q_apply(vec4 q, vec3 v) {
   return q_mul(q_mul(q, p), q_conj(q)).xyz;
 }
 
-mat3 q_to_so3(vec4 q) {
+vec3 q_applyInv(vec4 q, vec3 v) {
+  return q_apply(q_conj(q), v);
+}
+
+mat3 q_toSo3(vec4 q) {
   float s = q.w;
   vec3 v = q.xyz;
   mat3 I = mat3(1.0);
   mat3 Cv = mat_cross(v);
   return 2.0 * outer(v, v) + (dot2(s) - dot2(v)) * I + 2.0 * s * Cv;
+}
+
+vec4 q_fromAxisAngle(vec3 u, float t) {
+  return vec4(sin(0.5 * t) * u, cos(0.5 * t));
+}
+
+vec4 q_fromAxisAngleVector(vec3 v) {
+  if (length(v) < 1e-7) { return vec4(vec3(0.0), 1.0); }
+  return q_fromAxisAngle(normalize(v), length(v));
 }
 
 vec3 orthogonalize(vec3 v, vec3 n) {
