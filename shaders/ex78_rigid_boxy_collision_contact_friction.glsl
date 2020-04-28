@@ -1,7 +1,5 @@
 //
-// Rigid body (collision reaction and contact constraint)
-//
-// TODO: compare with analytically solved example
+// Rigid body (collision reaction and contact constraint with friction)
 //
 
 /*
@@ -74,6 +72,14 @@ plugins:
     params: { binding: 0, type: size, size: 1024 }
   - type: raster
     params: { primitive: GL_POINTS, count: 1, vertex_shader: mainVertexUI, fragment_shader: mainFragmentDiscard }
+
+  # [ Variable ]
+  #- type: uniformlist
+  #  params:
+  #    name: ['U_gravity_angle']
+  #    default: [0.0]
+  #    min: [-0.25]
+  #    max: [+0.25]
 
 samplers: []
 programs:
@@ -148,12 +154,20 @@ mat4 getVertexTransform(vec2 resolution) {
 // uniform float U_size_y = 1.0;
 // uniform float U_size_z = 4.0;
 
+// uniform float U_size_x = 2.0;
+// uniform float U_size_y = 1.0;
+// uniform float U_size_z = 2.0;
+
 // [ Unit cube ]
 uniform float U_size_x = 1.0;
 uniform float U_size_y = 1.0;
 uniform float U_size_z = 1.0;
 
-uniform float U_gravity = 9.8;
+uniform float U_gravity = 10.0;
+uniform float U_gravity_angle = 0.0; // 0.125
+
+uniform float U_mu_s = 1.0; // <angle-of-repose> = 1/8 turn
+uniform float U_mu_d = 0.1;
 
 vec3 inertiaBox(float rho, vec3 s) {
   // M = p (x * y * z)
@@ -187,6 +201,8 @@ vec3 inertiaBox(float rho, vec3 s) {
     vec3 w = Ssbo_w;
     mat3 A = Ssbo_A;
     vec3 g = U_gravity * OZN.yzy;
+    float mu_s = U_mu_s;
+    float mu_d = U_mu_d;
     float rho = 10.0;
     vec3 size = vec3(U_size_x, U_size_y, U_size_z);
     float m = rho * size.x * size.y * size.z;
@@ -202,12 +218,17 @@ vec3 inertiaBox(float rho, vec3 s) {
     // 3. solve collision reaction and update v, w
     // 4. solve contact correction for v, w and update x, A
 
+    // keep last state in order to identify "static" contact (cf. step 4)
+    vec3 v_prev = v;
+    vec3 w_prev = w;
+
     // 0.
     {
-      vec3 f_ext = m * g;
+      // change angle to demonstrate "angle of repose"
+      vec3 f_ext = T_rotate3(OZN.yyx * U_gravity_angle * 2.0 * M_PI) * (m * g);
       vec3 tq_ext = OZN.yyy;
       float kDumpV = 0.0;
-      float kDumpW = 0.2; // TODO: probably it depends on inertia or geometry ?
+      float kDumpW = 0.0; // TODO: probably it depends on inertia or geometry ?
       vec3 f = f_ext - kDumpV * v;
       vec3 tq = tq_ext - kDumpW * A * w;
       v += dt * f / m;
@@ -247,12 +268,16 @@ vec3 inertiaBox(float rho, vec3 s) {
       // By continuous collision checking, we can handle reaction with more accurate point velocity.
       if (dt_g >= -0.05) { continue; }
 
-      // collision with infinite mass ground
+      vec3 u_fric = vec3(0.0);
+      if (dot(-v_p, n) < length(v_p) * 0.99) {
+        u_fric = - normalize(orthogonalize(v_p, n));
+      }
+
       vec3 Ar = A * r;
-      float jj =
+      float a =
           - (1.0 + e) * dot(n, v_p) /
-            ((1.0 / m) + dot(n, cross(inverse(I_A) * cross(Ar, n), Ar)));
-      vec3 j = jj * n;
+          ((1.0 / m) + dot(n, cross(inverse(I_A) * cross(Ar, n + mu_d * u_fric), Ar)));
+      vec3 j = a * (n + mu_d * u_fric);
 
       v += j / m;
       w += (1.0 / I) * (inverse(A) * cross(Ar, j));
@@ -273,21 +298,41 @@ vec3 inertiaBox(float rho, vec3 s) {
         float g = dot(n, p);
         float dt_g = dot(n, v_p);
 
-        if (g >= 0.0) { continue; }
+        if (g > 0.0) { continue; }
         if (dt_g >= 0.0) { continue; }
 
         vec3 dv_g = dt * n;
         vec3 dw_g = dt * cross(r, inverse(A) * n);
 
         float q = dot(dv_g, Mv * dv_g) + dot(dw_g, Mv * dw_g);
+
+        // velocity correction
         vec3 dv = (-g / q) * dv_g;
         vec3 dw = (-g / q) * dw_g;
 
-        // velocity correction
+        // corresponding force (actually impulse) to derive friction
+        vec3 f = m * dv;
+
+        // friction handling
+        if (dot(-v_p, n) < length(v_p) * 0.99) {
+          vec3 u_fric = - normalize(orthogonalize(v_p, n));
+
+          // Approximate friction coefficient based on previous frame velocity
+          vec3 v_p_prev = v_prev + A * cross(w_prev, r);
+          float mu = mix(mu_s, mu_d, smoothstep(0.04, 0.06, length(orthogonalize(v_p_prev, n))));
+
+          // further correction for friction
+          vec3 f_fric = mu * dot(n, f) * u_fric;
+          dv += f_fric / m;
+          dw += (1.0 / I) * cross(r, inverse(A) * f_fric);
+        }
+
+        // Apply correction
         v += dv;
         w += dw;
 
         // corresponding position correction
+        // (this "position-based" correction formula is actually dt independent)
         x += dt * dv;
         A = A * T_axisAngle(normalize(dw), dt * length(dw));
       }
@@ -297,6 +342,11 @@ vec3 inertiaBox(float rho, vec3 s) {
     // initial values
     if (init) {
       // [ 4 corners on the ground ]
+      // NOTE:
+      // demonstrate "angle of repose" by changing U_gravity_angle up to 0.125.
+      // it's not really simulated well but works if
+      //   - using "stable" box e.g. size = (4.0, 1.0, 4.0).
+      //   - using smaller time step e.g. kNumSubsteps = 32
       // x = vec3(0.0, 0.5, 0.0);
       // v = vec3(0.0, 0.0, 0.0);
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
@@ -304,7 +354,7 @@ vec3 inertiaBox(float rho, vec3 s) {
 
       // [ 4 corners bounce ]
       // x = vec3(0.0, 2.0, 0.0);
-      // v = vec3(0.0,-2.0, 0.0);
+      // v = vec3(0.0,-1.0, 0.0);
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
       // A = T_rotate3(vec3(0.0, 0.0, 0.0) * M_PI);
 
@@ -313,24 +363,21 @@ vec3 inertiaBox(float rho, vec3 s) {
       // v = vec3(0.0, 0.0, 0.0);
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
       // A = T_rotate3(vec3(0.25, 0.0, 0.0) * M_PI);
-
-      // [ 2 corners on the ground (not perfect) ]
-      // x = vec3(0.0, 0.707, 0.0);
-      // v = vec3(0.0, 0.0, 0.0);
-      // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
-      // A = T_rotate3(vec3(0.24, 0.0, 0.0) * M_PI);
+      // A = T_rotate3(vec3(0.20, 0.0, 0.0) * M_PI); // inperfect
 
       // [ 2 corners bounce ]
-      // x = vec3(0.0, 4.0, 0.0);
+      // x = vec3(0.0, 2.0, 0.0);
       // v = vec3(0.0, 0.0, 0.0);
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
       // A = T_rotate3(vec3(0.25, 0.0, 0.0) * M_PI);
+      // A = T_rotate3(vec3(0.2, 0.0, 0.0) * M_PI); // inperfect
 
       // [ 1 corner on the ground ]
       // x = vec3(0.0, 0.88, 0.0);
       // v = vec3(0.0, 0.0, 0.0);
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
       // A = T_rotate3(vec3(0.25, 0.0, 0.19) * M_PI);
+      // A = T_rotate3(vec3(0.249, 0.0, 0.18) * M_PI); // inperfect
 
       // [ 1 corner bounce ]
       // x = vec3(0.0, 1.88, 0.0);
@@ -338,11 +385,41 @@ vec3 inertiaBox(float rho, vec3 s) {
       // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
       // A = T_rotate3(vec3(0.25, 0.0, 0.19) * M_PI);
 
-      // [ Example ]
-      x = vec3(0.0, 3.0, 0.0);
-      v = vec3(0.0,-2.0, 0.0);
-      w = vec3(0.0, 1.0, 0.0) * 2.0 * M_PI;
-      A = T_rotate3(vec3(0.2, 0.0, 0.0) * M_PI);
+      // [ Example 1 ]
+      // x = vec3(0.0, 3.0, 0.0);
+      // v = vec3(0.0,-2.0, 0.0);
+      // w = vec3(0.0, 1.0, 0.0) * 2.0 * M_PI;
+      // A = T_rotate3(vec3(0.2, 0.0, 0.0) * M_PI);
+
+      // [ Example 2 ]
+      // x = vec3(-1.0, 2.0, 0.0);
+      // v = vec3(+1.0, 0.0, 0.0);
+      // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
+      // A = T_rotate3(vec3(0.05, 0.0, -0.25) * M_PI);
+
+      // [ Example 3 : spin on the ground ]
+      // TODO: analytically derive the number of turn it can take and compare
+      // x = vec3(0.0, 0.5, 0.0);
+      // v = vec3(0.0, 0.0, 0.0);
+      // w = vec3(0.0, 2.0, 0.0) * 2.0 * M_PI;
+      // A = T_rotate3(vec3(0.0, 0.0, 0.0) * M_PI);
+
+      // [ Example 4 : a bit wild spin on the ground ]
+      x = vec3(0.0, 1.0, 0.0);
+      v = vec3(0.0,-1.0, 0.0);
+      w = vec3(0.0, 3.0, 0.0) * 2.0 * M_PI;
+      A = T_rotate3(vec3(0.1, 0.0, 0.0) * M_PI);
+
+      // [ Example 5 : sliding on the ground]
+      // NOTE:
+      // we have kinematic equation (if box didn't fall down)
+      //   1/2 m v^2 = len f_dyn = len mu_dyn m g
+      //    <=>  len = v^2 / (2 mu_dyn g) = 1 / (20 * mu_dyn)
+      // This mass/inertia independent phenomena is almost perfectly simulated.
+      // x = vec3(-1.0, 0.5, 0.0);
+      // v = vec3(+1.0, 0.0, 0.0);
+      // w = vec3(0.0, 0.0, 0.0) * 2.0 * M_PI;
+      // A = T_rotate3(vec3(0.0, 0.0, 0.0) * M_PI);
     }
     Ssbo_x = x;
     Ssbo_v = v;
@@ -352,6 +429,7 @@ vec3 inertiaBox(float rho, vec3 s) {
 
   void mainCompute(/*unused*/ uvec3 comp_coord, uvec3 comp_local_coord) {
     float kTimeScale = 1.0;
+    // float kTimeScale = 0.1; // slow-motion and smaller time step
     float t = Ssbo_last_time;
     float dt = kTimeScale * iTime - t;
     bool init = iFrame == 0;
@@ -361,6 +439,7 @@ vec3 inertiaBox(float rho, vec3 s) {
     // (it should be solved by continuous collision checking. cf. dt_g >= -delta)
     // int kNumSubsteps = 1;
     int kNumSubsteps = 4;
+    // int kNumSubsteps = 32;
     float dt_substep = dt / float(kNumSubsteps);
     for (int i = 0; i < kNumSubsteps; i ++) {
       update(t, dt_substep, init);

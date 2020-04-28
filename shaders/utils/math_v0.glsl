@@ -119,3 +119,7 @@ mat3 q_to_so3(vec4 q) {
   mat3 Cv = mat_cross(v);
   return 2.0 * outer(v, v) + (dot2(s) - dot2(v)) * I + 2.0 * s * Cv;
 }
+
+vec3 orthogonalize(vec3 v, vec3 n) {
+  return v - dot(n, v) * n;
+}
