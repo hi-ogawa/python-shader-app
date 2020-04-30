@@ -95,6 +95,13 @@ mat3 outer(vec3 u, vec3 v) {
   return mat3(u * v.x, u * v.y, u * v.z);
 }
 
+mat2 outer(vec2 u, vec2 v) {
+  return mat2(u * v.x, u * v.y);
+}
+
+mat2 outer2(vec2 u) { return outer(u, u); }
+mat3 outer2(vec3 u) { return outer(u, u); }
+
 vec4 q_mul(vec4 q, vec4 p) {
   float s1 = q.w;  vec3 v1 = q.xyz;
   float s2 = p.w;  vec3 v2 = p.xyz;
@@ -134,5 +141,6 @@ vec4 q_fromAxisAngleVector(vec3 v) {
 }
 
 vec3 orthogonalize(vec3 v, vec3 n) {
+  // mat3(1.0) - outer2(n, n)
   return v - dot(n, v) * n;
 }

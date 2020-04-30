@@ -731,7 +731,7 @@ class OffscreenRenderer():
     from time import sleep
     src, _ = preprocess_include(shader_file)
     self.renderer.configure(src, self.w, self.h)
-    option = self.renderer.config['offscreen_option']
+    option = self.renderer.config.get('offscreen_option', dict(fps = 60, num_frames = 1))
     fps = option['fps']
     num_frames = option['num_frames']
     for frame in range(num_frames):
