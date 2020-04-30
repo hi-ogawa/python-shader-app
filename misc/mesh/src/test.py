@@ -93,6 +93,43 @@ class TestUtils(unittest.TestCase):
     self.assertEqual(p_vs.shape, (11 * 13, 3))
     self.assertEqual(faces.shape, (11 * 13, 4))
 
+  def test_misc08(self):
+    p_vs, faces = data.hedron4()
+    verts = np.pad(p_vs, [(0, 0), (0, 1)])
+    verts, faces, parity = utils.subdiv_mobius(verts, faces)
+    self.assertEqual(verts.shape, (4 + 6 + 4, 4))
+    self.assertEqual(faces.shape, (4 * 6, 3))
+    self.assertEqual(parity.shape, (4 * 6, ))
+
+  def test_misc09(self):
+    p_vs, faces = data.hedron4()
+    # Show `subdiv_triforce` supports arbitrary vertex attributes
+    verts = np.pad(p_vs, [(0, 0), (0, 1)])
+    verts, faces = utils.subdiv_triforce(verts, faces)
+    self.assertEqual(verts.shape, (4 + 6, 4))
+    self.assertEqual(faces.shape, (4 * 4, 3))
+
+  def test_misc10(self):
+    p_vs, faces = data.hedron4()
+    p_vs, faces, parity = utils.subdiv_mobius(p_vs, faces)
+    parity = parity.reshape((-1, 1))
+
+    new_verts, new_faces = utils.finalize(p_vs, faces, smooth=False, face_attrs=parity)
+    self.assertEqual(new_verts.shape, (4 * 6 * 3, 3 + 3 + 1))
+    self.assertEqual(new_faces.shape, (4 * 6, 3))
+
+    new_verts, new_faces = utils.finalize(p_vs, faces, smooth=True, face_attrs=parity)
+    self.assertEqual(new_verts.shape, (4 * 6 * 3, 3 + 3 + 1))
+    self.assertEqual(new_faces.shape, (4 * 6, 3))
+
+  def test_misc11(self):
+    verts, faces = utils.concat(
+        data.hedron4(),  # V, F = 4, 4
+        data.hedron8())  # V, F = 6, 8
+    self.assertEqual(verts.shape, (4 + 6, 3))
+    self.assertEqual(faces.shape, (4 + 8, 3))
+
+
   def test_loader_ply(self):
     # [format ascii 1.0]
     relpath = '../../bvh/data/bunny/reconstruction/bun_zipper_res4.ply'

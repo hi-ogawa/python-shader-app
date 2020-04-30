@@ -45,7 +45,27 @@ def compute_face_normals(p_vs, faces):
   return n_vs
 
 
-def finalize(p_vs, faces, smooth):
+def verts_from_face_attrs(num_verts, faces, face_attrs):
+  # @params
+  #   num_verts: int
+  #   faces: Np[K, L]
+  #   face_attrs: Np[K, A...]
+  # @returns
+  #   verts: Np[num_verts, A...]
+  verts = np.empty_like(face_attrs, shape=(num_verts, ) + face_attrs.shape[1:])
+  for i in range(faces.shape[1]):
+    verts[faces[:, i]] = face_attrs
+  return verts
+
+
+def merge_face_attrs(verts, faces, face_attrs):
+  verts, faces = uniqify_vertices(verts, faces)
+  fattr_vs = verts_from_face_attrs(len(verts), faces, face_attrs)
+  verts = soa_to_aos(verts, fattr_vs)
+  return verts, faces
+
+
+def finalize(p_vs, faces, smooth, face_attrs=None):
   assert p_vs.dtype == np.float32
   assert faces.dtype == np.uint32
   assert faces.shape[1] in [3, 4]
@@ -55,9 +75,23 @@ def finalize(p_vs, faces, smooth):
     p_vs, faces = uniqify_vertices(p_vs, faces)
     n_vs = compute_vertex_normals(p_vs, faces)
   verts = soa_to_aos(p_vs, n_vs)
+  if face_attrs is not None:
+    verts, faces = merge_face_attrs(verts, faces, face_attrs)
   if faces.shape[1] == 4:
     faces = quads_to_tris(faces)
   return verts, faces
+
+
+def concat(*ls_verts_faces):
+  assert len(ls_verts_faces) > 0
+  ls_verts = [x for x, y in ls_verts_faces]
+  ls_faces = [y for x, y in ls_verts_faces]
+  assert all(ls_verts[0].shape[1:] == x.shape[1:] for x in ls_verts[1:])
+  assert all(ls_faces[0].shape[1:] == x.shape[1:] for x in ls_faces[1:])
+  new_verts = np.concatenate(ls_verts, axis=0)
+  offsets = np.cumsum([0] + [len(x) for x in ls_verts[:-1]])
+  new_faces = np.concatenate([faces + offset for faces, offset in zip(ls_faces, offsets)], axis=0)
+  return new_verts, new_faces
 
 
 # scale/translate into [-1, 1]^3
@@ -113,23 +147,33 @@ def process_neighbor20(neighbor20, nV): # -> (neighbor201, neighbor10, vertex_de
   return neighbor201, neighbor10, vertex_deg
 
 
-def geodesic_subdiv(p_vs, faces):
+def subdiv_triforce(verts, faces, face_attrs=None): # float[V, ...], float[F, 3] -> ...
+  #
+  # subdivide each triangle into
+  #      /\
+  #     /__\
+  #    /\  /\
+  #   /__\/__\
+  #
   assert faces.shape[1] == 3
 
-  V = len(p_vs)
+  V = len(verts)
   neighbor201, neighbor10, _ = process_neighbor20(faces, V)
-  neighbor10 = Np(neighbor10, np.uint32)
+  neighbor10 = np.uint32(neighbor10)
 
   E = len(neighbor10)
   F = len(neighbor201)
 
-  new_p_vs = np.empty_like(p_vs, shape=(V + E, 3))
+  new_verts = np.empty_like(verts, shape=(V + E, verts.shape[1]))
   new_faces = np.empty_like(faces, shape=(4 * F, 3))
+  if face_attrs is not None:
+    new_face_attrs = np.empty_like(face_attrs, shape=(4 * F, ) + face_attrs.shape[1:])
+    for i in range(4):
+      new_face_attrs[i::4] = face_attrs
 
-  # new verts + middle of old verts (projeced to unit sphere)
-  new_p_vs[:V] = p_vs
-  new_p_vs[V:] = (p_vs[neighbor10[:, 0]] + p_vs[neighbor10[:, 1]]) / 2
-  new_p_vs /= np.sqrt(np.sum(new_p_vs**2, axis=1, keepdims=True))
+  # new verts
+  new_verts[:V] = verts
+  new_verts[V:] = (verts[neighbor10[:, 0]] + verts[neighbor10[:, 1]]) / 2
 
   # new faces
   for f, ((v0, e0), (v1, e1), (v2, e2)) in enumerate(neighbor201):
@@ -138,7 +182,62 @@ def geodesic_subdiv(p_vs, faces):
     new_faces[4 * f + 2] = [V + e1,     v2, V + e2]
     new_faces[4 * f + 3] = [V + e2,     v0, V + e0]
 
-  return new_p_vs, new_faces
+  if face_attrs is not None:
+    return new_verts, new_faces, new_face_attrs
+  return new_verts, new_faces
+
+
+def subdiv_mobius(verts, faces): # float[V, ...], float[F, 3] -> ...
+  #
+  # - Subdivide each face into 6 faces from 7 vertices as in
+  #       v3
+  #     e2   e1
+  #       vf
+  #  v1   e3   v2
+  #
+  # - `new_verts` is computed as average
+  # - `parity` is reflection parity of (possible) Mobus triangles
+  # - See ex81_tiling_sphere.glsl for construction of Mobus triangles (3, 3, 2), (4, 3, 2), (5, 3, 2)
+  #
+  assert faces.shape[1] == 3
+
+  V = len(verts)
+
+  neighbor201, neighbor10, _ = process_neighbor20(faces, V)
+  neighbor10 = np.uint32(neighbor10)
+
+  E = len(neighbor10)
+  F = len(neighbor201)
+
+  # Allocate
+  new_verts = np.empty_like(verts, shape=(V + E + F, verts.shape[1]))
+  new_faces = np.empty_like(faces, shape=(6 * F, 3))
+  parity = np.empty(6 * F, dtype=verts.dtype)
+
+  # new verts
+  new_verts[:V] = verts
+  new_verts[V:][:E] = (verts[neighbor10[:, 0]] + verts[neighbor10[:, 1]]) / 2
+
+  # offset of vertex index
+  oE = V
+  oF = V + E
+
+  # new faces
+  for f, ((v0, e0), (v1, e1), (v2, e2)) in enumerate(neighbor201):
+    new_verts[V:][E:][f] = (verts[v0] + verts[v1] + verts[v2]) / 3
+    new_faces[6 * f + 0] = [v0, oE + e0, oF + f];  parity[6 * f + 0] = +1
+    new_faces[6 * f + 1] = [v1, oE + e1, oF + f];  parity[6 * f + 1] = +1
+    new_faces[6 * f + 2] = [v2, oE + e2, oF + f];  parity[6 * f + 2] = +1
+    new_faces[6 * f + 3] = [oE + e0, v1, oF + f];  parity[6 * f + 3] = -1
+    new_faces[6 * f + 4] = [oE + e1, v2, oF + f];  parity[6 * f + 4] = -1
+    new_faces[6 * f + 5] = [oE + e2, v0, oF + f];  parity[6 * f + 5] = -1
+
+  return new_verts, new_faces, parity
+
+
+def geodesic_subdiv(p_vs, faces):
+  p_vs, faces = subdiv_triforce(p_vs, faces)
+  return normalize(p_vs), faces
 
 
 def normalize(v): # float[..., d] -> float[...]
