@@ -15,14 +15,30 @@ plugins:
       fragment_shader: mainF
       vertex_attributes: { VertexIn_position: "(gl.GL_FLOAT, 0 * 4, 2, 2 * 4)" }
 
+  # [ Image viewer UI ]
+  - type: ssbo
+    params: { binding: 1, type: size, size: 1024 }
+  - type: raster
+    params: { primitive: GL_POINTS, count: 1, vertex_shader: mainVertexUI, fragment_shader: mainFragmentDiscard }
+
 samplers: []
 programs: []
+offscreen_option: { fps: 60, num_frames: 2 }
 %%config-end%%
 */
+
+// ssbo: ui state
+layout (std140, binding = 1) buffer Ssbo1 {
+  bool Ssbo_mouse_down;
+  vec2 Ssbo_mouse_down_p;
+  vec2 Ssbo_mouse_click_p;
+  mat3 Ssbo_inv_view_xform;
+};
 
 #include "utils/math_v0.glsl"
 #include "utils/transform_v0.glsl"
 #include "utils/misc_v0.glsl"
+#include "utils/ui_v0.glsl"
 
 #ifdef COMPILE_mainV
   layout (location = 0) in vec2 VertexIn_position;
@@ -61,15 +77,14 @@ programs: []
     return outer2(hn) * (p - hp);
   }
 
-  vec4 renderPixel(vec2 frag_coord, vec2 resolution) {
-    mat3 invViewXform = T_invView(2.0 * atan(2.0), resolution);
-    mat3 viewXform = inverse(invViewXform);
+  vec4 renderPixel(vec2 frag_coord, mat3 inv_view_xform) {
+    mat3 view_xform = inverse(inv_view_xform);
     float AA = U_AA;
     vec3 color;
 
     // (3, 3, 3)
     if (U_type < 1.0) {
-      vec2 p = vec2(invViewXform * vec3(frag_coord, 1.0));
+      vec2 p = vec2(inv_view_xform * vec3(frag_coord, 1.0));
 
       // Make lattice of parallelogram
       mat2 lattice = mat2(OZN.xy, T_rotate2(+ M_PI / 3.0) * OZN.xy);
@@ -83,8 +98,8 @@ programs: []
       vec2 q = p;
       reflectWithParity(q, OZN.yy, T_rotate2(M_PI * 5.0 / 3.0) * OZN.xy, /*out*/ q);
 
-      float ud_lattice = length(mat2(viewXform) * hyperPlaneToPoint(q, OZN.yy, OZN.yx));
-      float ud = min(ud_lattice, length(mat2(viewXform) * hyperPlaneToPoint(p, OZN.xy, T_rotate2(M_PI / 6.0) * OZN.xy)));
+      float ud_lattice = length(mat2(view_xform) * hyperPlaneToPoint(q, OZN.yy, OZN.yx));
+      float ud = min(ud_lattice, length(mat2(view_xform) * hyperPlaneToPoint(p, OZN.xy, T_rotate2(M_PI / 6.0) * OZN.xy)));
 
       float sd = - parity * ud;
       float fac = smoothstep(0.0, 1.0, sd / AA + 0.5);
@@ -101,7 +116,7 @@ programs: []
 
     // (4, 4, 2)
     if (U_type < 2.0) {
-      vec2 p = vec2(invViewXform * vec3(frag_coord, 1.0));
+      vec2 p = vec2(inv_view_xform * vec3(frag_coord, 1.0));
 
       // Make lattice of square [0, 2]^2
       p = fract(p / 2.0) * 2.0;
@@ -115,7 +130,7 @@ programs: []
       // Distance to edge of fundamental domain (right triangle)
       float ud = 1e7;
       #define UPDATE(A1, A2) \
-          ud = min(ud, length(mat2(viewXform) * hyperPlaneToPoint(p, A1, A2)))
+          ud = min(ud, length(mat2(view_xform) * hyperPlaneToPoint(p, A1, A2)))
         UPDATE(OZN.xy, OZN.xy);
         UPDATE(OZN.yy, OZN.yx);
         UPDATE(OZN.yy, normalize(OZN.xz));
@@ -127,7 +142,7 @@ programs: []
 
       {
         // Draw lattice cell edge
-        float ud_lattice = length(mat2(viewXform) * hyperPlaneToPoint(p, OZN.yy, OZN.yx));
+        float ud_lattice = length(mat2(view_xform) * hyperPlaneToPoint(p, OZN.yy, OZN.yx));
         float edge_width = 1.0;
         float sd = ud_lattice - edge_width;
         float fac = smoothstep(0.0, 1.0, sd / AA + 0.5);
@@ -137,7 +152,7 @@ programs: []
 
     // (6, 3, 2)
     if (true) {
-      vec2 p = vec2(invViewXform * vec3(frag_coord, 1.0));
+      vec2 p = vec2(inv_view_xform * vec3(frag_coord, 1.0));
 
       // Make lattice of parallelogram
       mat2 lattice = sqrt(3.0) * mat2(
@@ -152,7 +167,7 @@ programs: []
       parity *= reflectWithParity(p, 1.5 * OZN.xy,                               - OZN.xy, /*out*/ p);
 
       // Distance to lattice cell edge
-      float ud_lattice = length(mat2(viewXform) * hyperPlaneToPoint(
+      float ud_lattice = length(mat2(view_xform) * hyperPlaneToPoint(
           p, OZN.yy, T_rotate2(M_PI * 2.0 / 3.0) * OZN.xy));
 
       // Continue reflecting
@@ -163,7 +178,7 @@ programs: []
         // Distance to edge of fundamental domain (right triangle)
         float ud = 1e7;
         #define UPDATE(A1, A2) \
-            ud = min(ud, length(mat2(viewXform) * hyperPlaneToPoint(p, A1, A2)))
+            ud = min(ud, length(mat2(view_xform) * hyperPlaneToPoint(p, A1, A2)))
           UPDATE(OZN.xy, T_rotate2(M_PI * 1.0 / 6.0) * OZN.xy);
           UPDATE(OZN.yy, T_rotate2(M_PI * 2.0 / 3.0) * OZN.xy);
           UPDATE(OZN.yy,                               OZN.yx);
@@ -175,7 +190,7 @@ programs: []
 
       {
         // Distance to edge of hexagon
-        float ud = length(mat2(viewXform) * hyperPlaneToPoint(
+        float ud = length(mat2(view_xform) * hyperPlaneToPoint(
             p, OZN.xy, T_rotate2(M_PI * 1.0 / 6.0) * OZN.xy));
 
         float edge_width = 1.5;
@@ -198,6 +213,33 @@ programs: []
   }
 
   void main() {
-    FragmentOut_color = renderPixel(gl_FragCoord.xy, iResolution.xy);
+    FragmentOut_color = renderPixel(gl_FragCoord.xy, Ssbo_inv_view_xform);
+  }
+#endif
+
+
+//
+// Program: UI
+//
+
+#ifdef COMPILE_mainVertexUI
+  uniform vec3 iResolution;
+  uniform vec4 iMouse;
+  uniform uint iKeyModifiers;
+  uniform int iFrame;
+
+  void main() {
+    if (iFrame == 0) {
+      Ssbo_inv_view_xform = T_invView(2.0 * atan(2.0), iResolution.xy);
+    }
+    UI_interactInvViewXform(iResolution.xy, iMouse, iKeyModifiers,
+        Ssbo_mouse_down, Ssbo_mouse_down_p, Ssbo_mouse_click_p, Ssbo_inv_view_xform);
+  }
+#endif
+
+#ifdef COMPILE_mainFragmentDiscard
+  layout (location = 0) out vec4 Fragment_color;
+  void main() {
+    discard;
   }
 #endif
