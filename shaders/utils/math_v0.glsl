@@ -70,6 +70,12 @@ float pow5(float x) {
   return x*x*x*x*x;
 }
 
+vec2 pow2(vec2 x) { return x * x; }
+vec3 pow2(vec3 x) { return x * x; }
+vec4 pow2(vec4 x) { return x * x; }
+mat2 pow2(mat2 x) { return x * x; }
+mat3 pow2(mat3 x) { return x * x; }
+mat4 pow2(mat4 x) { return x * x; }
 
 #define DEFINE_DIAG(N)             \
   mat##N diag(vec##N v) {          \
@@ -143,4 +149,17 @@ vec4 q_fromAxisAngleVector(vec3 v) {
 vec3 orthogonalize(vec3 v, vec3 n) {
   // mat3(1.0) - outer2(n, n)
   return v - dot(n, v) * n;
+}
+
+vec2 c_conj(vec2 z) {
+  return vec2(z.x, -z.y);
+}
+
+mat2 c_mul(vec2 z) {
+  // complex multiplication as scale/rotation
+  return mat2(z.x, z.y, -z.y, z.x);
+}
+
+vec2 c_inv(vec2 z) {
+  return c_conj(z) / dot2(z);
 }
