@@ -503,6 +503,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
 
   # override
   def keyPressEvent(self, event): # QKeyEvent
+    # TODO: during (non-modifier) key press, mouse event is not triggered at all.
     self.key = event.key()
     self.update()
     if self.key == QtCore.Qt.Key_R:

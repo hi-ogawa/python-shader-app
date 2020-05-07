@@ -59,7 +59,6 @@ layout (std140, binding = 1) buffer Ssbo1 {
   vec3 mixColor(vec3 c1, vec3 c2, float t) {
     c1 = pow(c1, vec3(2.2));
     c2 = pow(c2, vec3(2.2));
-    vec3 y = vec3(0.2126, 0.7152, 0.0722);
     vec3 c;
     c = mix(c1, c2, t);
     c = pow(c, vec3(1.0/2.2));
