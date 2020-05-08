@@ -1,10 +1,6 @@
 //
-// Fatou/Julia set for quadratic map z^2 + c
-//
-// NOTE:
-//   1. Move constant `c` by mouse move with pressing "A".
-//   2. Move iteration start point `z0` by mouse move with pressing "S".
-//   3. "D" ("Control-D") switches logistic parameter mode on (off).
+// Fatou/Julia set
+// (Shading interior of filled julia set based on Koenigs linearized coordinate)
 //
 
 
@@ -60,9 +56,6 @@ layout (std140, binding = 1) buffer Ssbo1 {
 #ifdef COMPILE_mainF
   uniform vec3 iResolution;
   layout (location = 0) out vec4 FragmentOut_color;
-
-  vec3 kColor1 = vec3(1.0, 0.5, 0.0);
-  vec3 kColor2 = vec3(0.0, 1.0, 0.5);
 
   vec3 mixColor(vec3 c1, vec3 c2, float t) {
     c1 = pow(c1, vec3(2.2));
@@ -156,11 +149,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
         z = c_mul(z) * z + cc;
       }
       vec3 escape_color;
-      // [ simple ]
-      escape_color = OZN.yxx * float(escape_time) / kEscapeMax;
-      // [ gradient ]
-      // escape_color = 0.5 + 0.5 * cos((kEscapeMax - escape_time) * 0.1 + OZN.xyz / 3.0);
-      // escape_color *= float(!(kEscapeMax == escape_time));
+      escape_color = OZN.xxx * float(escape_time) / kEscapeMax;
       color += escape_color * 0.25;
     }
 
@@ -168,26 +157,41 @@ layout (std140, binding = 1) buffer Ssbo1 {
     {
       // Positive root of z^2 - |c| = z
       float z_lim = 0.5 * (1.0 + sqrt(1.0 + 4.0 * length(c)));
+
+      // Attractive fixed point and its derivative (if |c| < 1 with "logistic")
+      vec2 zz = 0.5 * c;
+      vec2 lam = c;
+
       vec2 z = p;
       vec2 cc = !use_logistic ? c : toLogistic(c);
-      int kEscapeMax = 1024;
-      int escape_time = 0;
-      for (; escape_time < kEscapeMax; escape_time++) {
-        if (length(z) > z_lim + 1e-7) { break; }
+      int kIterMax = 1024;
+      int iter = 0;
+      bool basin = false;
+      for (; iter < kIterMax; iter++) {
+        if (length(z) > z_lim + 1e-3) { break; }
+        if (length(z - zz) < 1e-3) { basin = true; break; }
         z = c_mul(z) * z + cc;
       }
-      vec3 escape_color;
-      // [ simple ]
-      // escape_color = OZN.xxx * float(escape_time) / kEscapeMax;
-      // [ gradient ]
-      escape_color = 0.5 + 0.5 * cos((kEscapeMax - escape_time) * 0.1 + OZN.xyz / 3.0);
-      escape_color *= float(!(kEscapeMax == escape_time));
-      color += escape_color * 0.5;
+
+      vec3 koenigs_color = OZN.yyy;
+      if (basin) {
+        vec2 w = z - zz; // at neighborhood, Koenigs coord is already linear
+        float t_w = atan(w.y, w.x);
+        float t_lam = atan(lam.y, lam.x); // iterate back by multiplizer (i.e. f'(zz))
+        float t = t_w - iter * t_lam;     // to obtain phase.
+        float s = float(iter) * - log(length(lam)); // log of Koenigs coord amplitude
+        koenigs_color = Misc_hue(t / (2.0 * M_PI));
+
+        // [ modulate (contourline) by amplitude, which is difficult to scale ]
+        // float kFac = 1.0;
+        // koenigs_color *= (0.5 + 0.5 * cos(kFac * s));
+      }
+      color += koenigs_color * 0.8;
     }
 
     // Draw iteration from z0
     {
-      const int kNumIter = 64;
+      const int kNumIter = 32;
       vec2 zs[kNumIter];
       zs[0] = Ssbo_z0;
       vec2 cc = !use_logistic ? c : toLogistic(c);
@@ -228,13 +232,13 @@ layout (std140, binding = 1) buffer Ssbo1 {
       vec2 zz = 0.5 * c;
       {
         float ud = length(p - zz) / length(normalize(p - zz) * dpdw);
-        float fac = udToFactor(ud, 4.0, AA);
-        color = mixColor(color, OZN.xyy, fac);
+        float fac = udToFactor(ud, 6.0, AA);
+        color = mixColor(color, OZN.xxx, fac);
       }
       {
         float ud = length(p - (OZN.xy - zz)) / length(normalize(p - (OZN.xy - zz)) * dpdw);
-        float fac = udToFactor(ud, 4.0, AA);
-        color = mixColor(color, OZN.yxy, fac);
+        float fac = udToFactor(ud, 6.0, AA);
+        color = mixColor(color, OZN.xxx, fac);
       }
     }
 
@@ -278,7 +282,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
       Ssbo_inv_view_xform =
           T_translate2(center) *
           T_invView(2.0 * atan(height / 2.0), iResolution.xy);
-      Ssbo_c = T_rotate2(M_PI * 7.0 / 12.0) * OZN.xy;
+      Ssbo_c = T_rotate2(M_PI * 7.0 / 12.0) * OZN.xy * 0.95;
       Ssbo_z0 = vec2(0.0, 0.0);
       Ssbo_use_logistic = 1.0;
     }
