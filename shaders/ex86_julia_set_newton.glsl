@@ -1,10 +1,5 @@
 //
-// Fatou/Julia set for quadratic map z^2 + c
-//
-// NOTE:
-//   1. Move constant `c` by mouse move with pressing "A".
-//   2. Move iteration start point `z0` by mouse move with pressing "S".
-//   3. "D" ("Control-D") switches logistic parameter mode on (off).
+// Fatou/Julia set for newton method iteration
 //
 
 
@@ -40,9 +35,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
   mat3 Ssbo_inv_view_xform;
 
   uint Ssbo_key;
-  vec2 Ssbo_c;
   vec2 Ssbo_z0;
-  float Ssbo_use_logistic;
 };
 
 #include "utils/math_v0.glsl"
@@ -60,9 +53,6 @@ layout (std140, binding = 1) buffer Ssbo1 {
 #ifdef COMPILE_mainF
   uniform vec3 iResolution;
   layout (location = 0) out vec4 FragmentOut_color;
-
-  vec3 kColor1 = vec3(1.0, 0.5, 0.0);
-  vec3 kColor2 = vec3(0.0, 1.0, 0.5);
 
   vec3 mixColor(vec3 c1, vec3 c2, float t) {
     c1 = pow(c1, vec3(2.2));
@@ -111,20 +101,13 @@ layout (std140, binding = 1) buffer Ssbo1 {
           float sd = UD / length(GRAD * dpdw) - 0.5 * WIDTH;  \
           MERGE_SD(sd_out, sd, color_out, COLOR);             \
         }
-      XXX(min(fract(p.x), 1.0 - fract(p.x)), OZN.xy, 1.0, OZN.xxx * 0.5)
-      XXX(min(fract(p.y), 1.0 - fract(p.y)), OZN.yx, 1.0, OZN.xxx * 0.5)
-      XXX(abs(p.x),                          OZN.xy, 2.0, OZN.xyy * 0.5)
-      XXX(abs(p.y),                          OZN.xy, 2.0, OZN.yxy * 0.5)
+      XXX(min(fract(p.x), 1.0 - fract(p.x)), OZN.xy, 1.0, OZN.xxx * 0.2)
+      XXX(min(fract(p.y), 1.0 - fract(p.y)), OZN.yx, 1.0, OZN.xxx * 0.2)
+      XXX(abs(p.x),                          OZN.xy, 2.0, OZN.xyy * 0.2)
+      XXX(abs(p.y),                          OZN.xy, 2.0, OZN.yxy * 0.2)
 
     #undef XXX
     #undef MERGE_SD
-  }
-
-  // a x (1 - x) --(holom. change.)--> z^2 - c where
-  //  z = - x / a + 1 / 2
-  //  c = - a (a - 2) / 4
-  vec2 toLogistic(vec2 a) {
-    return - c_mul(a) * (a - 2.0 * c_1) / 4.0;
   }
 
   vec4 renderPixel(vec2 frag_coord) {
@@ -134,8 +117,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
     float AA = 1.5;
     vec3 color = OZN.yyy;
     vec2 p = vec2(inv_view_xform * vec3(frag_coord, 1.0));
-    vec2 c = Ssbo_c;
-    bool use_logistic = bool(Ssbo_use_logistic);
+    int n = 3;
     mat2 dpdw = mat2(inv_view_xform);
 
     // Draw coordinate grid
@@ -145,55 +127,47 @@ layout (std140, binding = 1) buffer Ssbo1 {
       color = mixColor(color, color_tmp, sdToFactor(sd_tmp, AA));
     }
 
-    // Draw Mandelbrot set
-    {
-      vec2 cc = !use_logistic ? p : toLogistic(p);
-      vec2 z = c_0;
-      int kEscapeMax = 1024;
-      int escape_time = 0;
-      for (; escape_time < kEscapeMax; escape_time++) {
-        if (4.0 < dot2(z)) { break; }
-        z = c_mul(z) * z + cc;
-      }
-      vec3 escape_color;
-      // [ simple ]
-      escape_color = OZN.yxx * float(escape_time) / kEscapeMax;
-      // [ gradient ]
-      // escape_color = 0.5 + 0.5 * cos((kEscapeMax - escape_time) * 0.1 + OZN.xyz / 3.0);
-      // escape_color *= float(!(kEscapeMax == escape_time));
-      color += escape_color * 0.25;
-    }
-
     // Draw Fatou/Julia set
     {
-      // Positive root of z^2 - |c| = z
-      float z_lim = 0.5 * (1.0 + sqrt(1.0 + 4.0 * length(c)));
+      // p(z) = z^n - 1
+      // p'(z) = n z^{n-1}
+      // f(z) = z - p(z) / p'(z) = ((n - 1) z^n + 1) / n z^{n - 1}
       vec2 z = p;
-      vec2 cc = !use_logistic ? c : toLogistic(c);
-      int kEscapeMax = 1024;
-      int escape_time = 0;
-      for (; escape_time < kEscapeMax; escape_time++) {
-        if (length(z) > z_lim + 1e-7) { break; }
-        z = c_mul(z) * z + cc;
+      int kIterMax = 1024;
+      int iter = 0;
+      for (; iter < kIterMax; iter++) {
+        vec2 zz = c_pow(z, n - 1);
+        vec2 zzz = c_mul(z) * zz;
+        if (dot2(zzz - c_1) < 1e-3) { break; }
+        z = c_mul(c_inv(float(n) * zz)) * (float(n - 1) * zzz + c_1);
       }
-      vec3 escape_color;
-      // [ simple ]
-      // escape_color = OZN.xxx * float(escape_time) / kEscapeMax;
-      // [ gradient ]
-      escape_color = 0.5 + 0.5 * cos((kEscapeMax - escape_time) * 0.1 + OZN.xyz / 3.0);
-      escape_color *= float(!(kEscapeMax == escape_time));
-      color += escape_color * 0.5;
+      vec3 iter_color = OZN.yyy;
+      iter_color += Misc_hue(atan(z.y, z.x) / (2.0 * M_PI) - M_PI / 6.0);
+      iter_color *= 0.5 + 0.5 * cos(0.2 * float(iter));
+      color += iter_color;
+      // [ Bottcher coord ] actually not well-defined for entire basin so not useful
+      if (dot2(z - c_1) < 1e-3) {
+        vec2 w = z - c_1;
+        float t_w = atan(w.y, w.x);
+
+        // Iterating back (for Bottcher coord, this corresponds to taking square root)
+        float t = t_w / pow(2.0, iter);
+
+        // Gave up using this
+        // color += Misc_hue(t / (2.0 * M_PI));
+      }
     }
 
     // Draw iteration from z0
     {
-      const int kNumIter = 64;
+      const int kNumIter = 16;
       vec2 zs[kNumIter];
       zs[0] = Ssbo_z0;
-      vec2 cc = !use_logistic ? c : toLogistic(c);
       for (int i = 1; i < kNumIter; i++) {
         vec2 z = zs[i - 1];
-        zs[i] = c_mul(z) * z + cc;
+        vec2 zz = c_pow(z, n - 1);
+        vec2 zzz = c_mul(z) * zz;
+        zs[i] = c_mul(c_inv(float(n) * zz)) * (float(n - 1) * zzz + c_1);
       }
 
       for (int i = 0; i < kNumIter; i++) {
@@ -201,7 +175,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
         if (1e3 < length(z)) { break; }
 
         float ud = length(p - z) / length(normalize(p - z) * dpdw);
-        float fac = udToFactor(ud, 4.0, AA);
+        float fac = udToFactor(ud, 6.0, AA);
         color = mixColor(color, vec3(1.0, 0.5, 0.0), fac);
 
         if (0 < i) {
@@ -213,31 +187,6 @@ layout (std140, binding = 1) buffer Ssbo1 {
         }
       }
     }
-
-    // Draw c
-    {
-      float ud = length(p - c) / length(normalize(p - c) * dpdw);
-      float fac = udToFactor(ud, 8.0, AA);
-      color = mixColor(color, OZN.yyx, fac);
-    }
-
-    // Draw fixed point (try putting z0 to repeling fixed point, whose path follows fractal pattern.)
-    if (use_logistic) {
-      // fixed points z = c/2 or 1 - c/2
-      // with derivative f'(z) = 2 z = c or 2 - c
-      vec2 zz = 0.5 * c;
-      {
-        float ud = length(p - zz) / length(normalize(p - zz) * dpdw);
-        float fac = udToFactor(ud, 4.0, AA);
-        color = mixColor(color, OZN.xyy, fac);
-      }
-      {
-        float ud = length(p - (c_1 - zz)) / length(normalize(p - (c_1 - zz)) * dpdw);
-        float fac = udToFactor(ud, 4.0, AA);
-        color = mixColor(color, OZN.yxy, fac);
-      }
-    }
-
     return vec4(color, 1.0);
   }
 
@@ -274,26 +223,17 @@ layout (std140, binding = 1) buffer Ssbo1 {
 
     if (iFrame == 0) {
       vec2 center = vec2(0.0, 0.0);
-      float height = 3.0;
+      float height = 6.0;
       Ssbo_inv_view_xform =
           T_translate2(center) *
           T_invView(2.0 * atan(height / 2.0), iResolution.xy);
-      Ssbo_c = T_rotate2(M_PI * 7.0 / 12.0) * c_1;
-      Ssbo_z0 = vec2(0.0, 0.0);
-      Ssbo_use_logistic = 1.0;
+      Ssbo_z0 = vec2(1.0, 1.0);
     }
 
     if (0 < iKey) {
       Ssbo_key = iKey;
     }
-    if (Ssbo_key == kKeyD) {
-      Ssbo_use_logistic = float(!bool(iKeyModifiers & kModifiers[1]));
-      Ssbo_key = 0;
-    }
     if (mouse_action) {
-      if (Ssbo_key == kKeyA) {
-        Ssbo_c = vec2(Ssbo_inv_view_xform * vec3(Ssbo_mouse_down_p, 1.0));
-      }
       if (Ssbo_key == kKeyS) {
         Ssbo_z0 = vec2(Ssbo_inv_view_xform * vec3(Ssbo_mouse_down_p, 1.0));
       }

@@ -151,6 +151,10 @@ vec3 orthogonalize(vec3 v, vec3 n) {
   return v - dot(n, v) * n;
 }
 
+const vec2 c_0 = vec2(0.0, 0.0);
+const vec2 c_1 = vec2(1.0, 0.0);
+const vec2 c_i = vec2(0.0, 1.0);
+
 vec2 c_conj(vec2 z) {
   return vec2(z.x, -z.y);
 }
@@ -162,4 +166,12 @@ mat2 c_mul(vec2 z) {
 
 vec2 c_inv(vec2 z) {
   return c_conj(z) / dot2(z);
+}
+
+vec2 c_pow(vec2 z, int n) {
+  vec2 ret = c_1;
+  for (int i = 0; i < n; i++) {
+    ret = c_mul(z) * ret;
+  }
+  return ret;
 }

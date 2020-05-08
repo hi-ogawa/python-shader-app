@@ -117,7 +117,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
   //  z = - x / a + 1 / 2
   //  c = - a (a - 2) / 4
   vec2 toLogistic(vec2 a) {
-    return - c_mul(a) * (a - 2.0 * OZN.xy) / 4.0;
+    return - c_mul(a) * (a - 2.0 * c_1) / 4.0;
   }
 
   vec4 renderPixel(vec2 frag_coord) {
@@ -141,7 +141,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
     // Draw Mandelbrot set
     {
       vec2 cc = !use_logistic ? p : toLogistic(p);
-      vec2 z = OZN.yy;
+      vec2 z = c_0;
       int kEscapeMax = 1024;
       int escape_time = 0;
       for (; escape_time < kEscapeMax; escape_time++) {
@@ -236,7 +236,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
         color = mixColor(color, OZN.xxx, fac);
       }
       {
-        float ud = length(p - (OZN.xy - zz)) / length(normalize(p - (OZN.xy - zz)) * dpdw);
+        float ud = length(p - (c_1 - zz)) / length(normalize(p - (c_1 - zz)) * dpdw);
         float fac = udToFactor(ud, 6.0, AA);
         color = mixColor(color, OZN.xxx, fac);
       }
@@ -282,7 +282,7 @@ layout (std140, binding = 1) buffer Ssbo1 {
       Ssbo_inv_view_xform =
           T_translate2(center) *
           T_invView(2.0 * atan(height / 2.0), iResolution.xy);
-      Ssbo_c = T_rotate2(M_PI * 7.0 / 12.0) * OZN.xy * 0.95;
+      Ssbo_c = T_rotate2(M_PI * 7.0 / 12.0) * c_1 * 0.95;
       Ssbo_z0 = vec2(0.0, 0.0);
       Ssbo_use_logistic = 1.0;
     }
