@@ -15,7 +15,7 @@ from .common import ShaderError
 
 
 VERTEX_SHADER_SOURCE = """
-#version 430 core
+#version 410 core
 layout (location = 0) in vec2 vert_position_;
 void main() {
   gl_Position = vec4(vert_position_, 0.0, 1.0);
@@ -146,7 +146,7 @@ DEFAULT_CONFIG = {
 }
 
 FRAGMENT_SHADER_TEMPLATE = """
-#version 430 core
+#version 410 core
 uniform float iTime;
 uniform int iFrame;
 uniform vec3 iResolution;
@@ -517,18 +517,18 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   # override
   def mousePressEvent(self, event):
     self.mouse_down = True
-    self.mouse_press_pos = self.mouse_move_pos = (event.x(), event.y())
+    self.mouse_press_pos = self.mouse_move_pos = self.event_pos(event)
     self.update()
 
   # override
   def mouseReleaseEvent(self, event):
     self.mouse_down = False
-    self.mouse_release_pos = (event.x(), event.y())
+    self.mouse_release_pos = self.event_pos(event)
     self.update()
 
   # override
   def mouseMoveEvent(self, event):
-    self.mouse_move_pos = (event.x(), event.y())
+    self.mouse_move_pos = self.event_pos(event)
     self.update()
 
   # override
@@ -541,6 +541,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
 
   # override
   def resizeGL(self, W, H):
+    W, H = self.pixel_size()
     self.renderer.configure_samplers(W, H) # TODO: reconfigure only framebuffers (not images)
     self.init_frame()
 
@@ -567,7 +568,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     self.makeCurrent()
     try:
       src, _ = preprocess_include(self.fragment_shader_file)
-      self.renderer.configure(src, self.width(), self.height())
+      self.renderer.configure(src, *self.pixel_size())
       self.shader_error = None
     except ShaderError as e:
       self.shader_error = e
@@ -575,9 +576,20 @@ class MyWidget(QtWidgets.QOpenGLWidget):
     self.init_frame()
     self.doneCurrent()
 
+  # Framebuffer size in device pixels (e.g. 2x of widget size on retina display)
+  def pixel_size(self):
+    r = self.devicePixelRatioF()
+    return round(self.width() * r), round(self.height() * r)
+
+  def event_pos(self, event):
+    r = self.devicePixelRatioF()
+    return round(event.x() * r), round(event.y() * r)
+
   def enable_debug(self):
     logger = QtGui.QOpenGLDebugLogger(self)
-    assert logger.initialize()
+    if not logger.initialize():
+      # e.g. macOS doesn't support KHR_debug
+      return
     logger.messageLogged.connect(handle_OpenGL_debug_message)
     logger.startLogging()
 
@@ -606,7 +618,7 @@ class MyWidget(QtWidgets.QOpenGLWidget):
   def render(self):
     self.renderer.draw(
       self.defaultFramebufferObject(),
-      self.width(), self.height(), self.app_frame, self.app_time,
+      *self.pixel_size(), self.app_frame, self.app_time,
       self.mouse_down, self.mouse_press_pos,
       self.mouse_release_pos, self.mouse_move_pos, self.key, self.key_modifiers)
 
@@ -671,7 +683,7 @@ def setup_gui(fragment_shader_file, w, h, x, y, play_mode):
     if not self.label2.hasFocus():
       self.label2.setText(f"{self.widget.app_time_maximum: >5.2f}")
     self.label3.setText(f"{self.widget.sec_per_frame() * 1000: >5.2f} (ms/f)")
-    self.label4.setText(f"{self.widget.width()}x{self.widget.height()}")
+    self.label4.setText("{}x{}".format(*self.widget.pixel_size()))
 
     # QIcon doesn't have equality, so we need to do equality check by ourselves
     # in order to prevent unnecessarily repaint
@@ -754,7 +766,7 @@ def render_offscreen(shader_file, output_file, w, h):
 def setup_gl_version():
   surface_format = QtGui.QSurfaceFormat()
   surface_format.setMajorVersion(4)
-  surface_format.setMinorVersion(3)
+  surface_format.setMinorVersion(1)
   surface_format.setDepthBufferSize(24)
   surface_format.setProfile(QtGui.QSurfaceFormat.CoreProfile)
   surface_format.setOption(QtGui.QSurfaceFormat.DebugContext)
