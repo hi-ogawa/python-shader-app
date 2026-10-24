@@ -5,7 +5,7 @@ from .common import ShaderError
 
 
 COMPUTE_SHADER_TEMPLATE = """
-#version 430 core
+#version 410 core
 layout (local_size_x = {local_size[0]}, local_size_y = {local_size[1]}, local_size_z = {local_size[2]}) in;
 uniform float iTime;
 uniform int iFrame;

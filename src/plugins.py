@@ -132,7 +132,7 @@ class RasterPlugin(Plugin):
     self.program = QtGui.QOpenGLShaderProgram()
     vs_name = self.config['vertex_shader']
     vs_src = '\n'.join([
-      '#version 430 core',
+      '#version 410 core',
       f"#define COMPILE_{vs_name}",
       src,
     ])
@@ -142,7 +142,7 @@ class RasterPlugin(Plugin):
 
     fs_name = self.config['fragment_shader']
     fs_src = '\n'.join([
-      '#version 430 core',
+      '#version 410 core',
       f"#define COMPILE_{fs_name}",
       src,
     ])
@@ -262,7 +262,7 @@ class RasterscriptPlugin(Plugin):
   def setup_program(self, src):
     self.program = QtGui.QOpenGLShaderProgram()
     vs_src = '\n'.join([
-      '#version 430 core',
+      '#version 410 core',
       '#define COMPILE_' + self.config['vertex_shader'],
       src,
     ])
@@ -271,7 +271,7 @@ class RasterscriptPlugin(Plugin):
       raise ShaderError(f"[RasterscriptPlugin] Vertex: \n{self.program.log()}")
 
     fs_src = '\n'.join([
-      '#version 430 core',
+      '#version 410 core',
       '#define COMPILE_' + self.config['fragment_shader'],
       src,
     ])
@@ -282,7 +282,7 @@ class RasterscriptPlugin(Plugin):
     gs_name = self.config.get('geometry_shader')
     if gs_name:
       gs_src = '\n'.join([
-        '#version 430 core',
+        '#version 410 core',
         '#define COMPILE_' + gs_name,
         src,
       ])
